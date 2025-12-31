@@ -2234,10 +2234,13 @@ const App: React.FC = () => {
     '#651fff'  // Deep Purple
   ];
 
-  const PieChartComp = ({ data }: { data: { name: string; total: number }[] }) => {
+  const PieChartComp = ({ data, hideEmptyMessage = false }: { data: { name: string; total: number }[], hideEmptyMessage?: boolean }) => {
     let cumulativePercent = 0;
     const total = data.reduce((acc, cur) => acc + cur.total, 0);
-    if (total === 0) return <div className="h-full flex items-center justify-center text-gray-600 italic">No data</div>;
+    if (total === 0) {
+      if (hideEmptyMessage) return null;
+      return <div className="h-full flex items-center justify-center text-gray-600 italic">No data</div>;
+    }
 
     return (
       <svg viewBox="-1 -1 2 2" className="w-full h-full -rotate-90">
@@ -3935,14 +3938,17 @@ const App: React.FC = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Asset Allocation Pie Chart */}
-                <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl flex flex-col items-center justify-center relative min-h-[300px]">
-                  <h3 className="absolute top-6 left-6 text-xs font-bold text-gray-500 uppercase tracking-widest">Asset Allocation</h3>
-                  <div className="w-56 h-56">
-                    <PieChartComp data={assetAllocationData} />
-                  </div>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-4">
-                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Assets</span>
-                    <span className="text-xl font-bold text-white">${totalAssetsValue.toLocaleString()}</span>
+                {/* Asset Allocation Pie Chart */}
+                <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl flex flex-col relative min-h-[300px]">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Asset Allocation</h3>
+                  <div className="flex-1 flex flex-col items-center justify-center relative">
+                    <div className="w-56 h-56">
+                      <PieChartComp data={assetAllocationData} hideEmptyMessage={true} />
+                    </div>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-0">
+                      <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Assets</span>
+                      <span className="text-xl font-bold text-white">${totalAssetsValue.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
 
