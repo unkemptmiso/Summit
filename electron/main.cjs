@@ -1,0 +1,81 @@
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
+
+function createWindow() {
+    const win = new BrowserWindow({
+        width: 1280,
+        height: 800,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.cjs'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+    });
+
+    // In production, load the local index.html. In dev, load localhost.
+    const isDev = !app.isPackaged;
+    if (isDev) {
+        win.loadURL('http://localhost:3000');
+        // win.webContents.openDevTools();
+    } else {
+        win.loadFile(path.join(__dirname, '../dist/index.html'));
+    }
+}
+
+app.whenReady().then(() => {
+    createWindow();
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createWindow();
+        }
+    });
+});
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+// --- IPC Handlers for Persistence ---
+
+ipcMain.handle('save-file', async (event, filePath, content) => {
+    try {
+        fs.writeFileSync(filePath, content, 'utf-8');
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to save file:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('read-file', async (event, filePath) => {
+    try {
+        if (!fs.existsSync(filePath)) {
+            throw new Error('File does not exist');
+        }
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return { success: true, content };
+    } catch (error) {
+        console.error('Failed to read file:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('show-save-dialog', async () => {
+    const result = await dialog.showSaveDialog({
+        filters: [{ name: 'Summit Data', extensions: ['json'] }],
+        defaultPath: 'summit_data.json'
+    });
+    return result;
+});
+
+ipcMain.handle('show-open-dialog', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Summit Data', extensions: ['json'] }]
+    });
+    return result;
+});
