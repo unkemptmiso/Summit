@@ -215,6 +215,24 @@ const App: React.FC = () => {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
 
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(prev => prev - 1);
+    } else {
+      setCurrentMonth(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(prev => prev + 1);
+    } else {
+      setCurrentMonth(prev => prev + 1);
+    }
+  };
+
   // Expenses State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [assetStructure, setAssetStructure] = useState<AssetCategory[]>(INITIAL_ASSET_STRUCTURE);
@@ -3057,13 +3075,13 @@ const App: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <button onClick={() => setCurrentMonth(m => m === 0 ? (setCurrentYear(y => y - 1), 11) : m - 1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+                  <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
                     <ChevronLeft size={20} />
                   </button>
                   <h2 className="text-lg font-semibold min-w-[140px] text-center text-white">
                     {months[currentMonth]} {currentYear}
                   </h2>
-                  <button onClick={() => setCurrentMonth(m => m === 11 ? (setCurrentYear(y => y + 1), 0) : m + 1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+                  <button onClick={handleNextMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
                     <ChevronRight size={20} />
                   </button>
                 </>
