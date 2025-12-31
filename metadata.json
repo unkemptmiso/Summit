@@ -1,0 +1,5 @@
+{
+  "name": "Summit",
+  "description": "A comprehensive personal finance tracking application featuring net worth monitoring, expense tracking, income management, and driving logs.",
+  "requestFramePermissions": []
+}
