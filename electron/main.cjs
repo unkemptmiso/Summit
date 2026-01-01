@@ -64,6 +64,28 @@ ipcMain.handle('read-file', async (event, filePath) => {
     }
 });
 
+ipcMain.handle('ensure-dir', async (event, dirPath) => {
+    try {
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to create directory:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('save-receipt', async (event, filePath, buffer) => {
+    try {
+        fs.writeFileSync(filePath, Buffer.from(buffer));
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to save receipt:', error);
+        return { success: false, error: error.message };
+    }
+});
+
 ipcMain.handle('show-save-dialog', async () => {
     const result = await dialog.showSaveDialog({
         filters: [{ name: 'Summit Data', extensions: ['json'] }],

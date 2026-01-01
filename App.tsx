@@ -1408,6 +1408,48 @@ const App: React.FC = () => {
     setBusinessTransactions(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
+  const handleReceiptUpload = async (file: File, transactionId: number | string) => {
+    if (!window.electronAPI) {
+      alert("Receipt upload is only available in the Electron app.");
+      return;
+    }
+
+    const transaction = businessTransactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+
+    try {
+      // Format Date
+      let datePart = transaction.date;
+      if (!datePart) {
+        const now = new Date();
+        datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      }
+      const [year, month, day] = datePart.split('-');
+      const formattedDate = `${month}.${day}.${year.slice(2)}`;
+
+      // Format Description & Amount
+      const description = (transaction.description || "Untitled").replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+      const amount = transaction.amount || "0";
+      const ext = file.name.split('.').pop();
+      const filename = `${formattedDate} - ${description} - ${amount}.${ext}`;
+
+      // Folder and Save
+      const folderName = `${currentYear} - Business Expense`;
+      await window.electronAPI.ensureDir(folderName);
+
+      const buffer = await file.arrayBuffer();
+      const filePath = `${folderName}/${filename}`;
+      await window.electronAPI.saveReceipt(filePath, buffer);
+
+      // Update Transaction
+      updateBusinessTransaction(transactionId, 'receiptPath', filePath);
+
+    } catch (error) {
+      console.error("Failed to upload receipt:", error);
+      alert("Failed to upload receipt.");
+    }
+  };
+
   const handleBusinessLedgerImport = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -3630,6 +3672,7 @@ const App: React.FC = () => {
                         <th className="px-4 py-3 w-32 text-right">Amount</th>
                         <th className="px-4 py-3 w-48">Category</th>
                         <th className="px-4 py-3 w-40">Method</th>
+                        <th className="px-4 py-3 w-32 text-center">Receipt</th>
                         <th className="px-4 py-3 w-12 text-center"></th>
                       </tr>
                     </thead>
@@ -3662,6 +3705,41 @@ const App: React.FC = () => {
                               <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateBusinessTransaction(t.id, 'method', e.target.value)}>
                                 {businessPaymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
                               </select>
+                            </td>
+                            <td
+                              className="p-0 border-r border-gray-800/20 relative group/cell"
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const file = e.dataTransfer.files[0];
+                                if (file) handleReceiptUpload(file, t.id);
+                              }}
+                              onPaste={(e) => {
+                                const file = e.clipboardData.files[0];
+                                if (file) handleReceiptUpload(file, t.id);
+                              }}
+                            >
+                              {t.receiptPath ? (
+                                <div className="flex items-center justify-center h-11 w-full px-2" title={t.receiptPath}>
+                                  <div className="flex items-center space-x-1 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/50 cursor-pointer" onClick={() => {/* Open file if possible */ }}>
+                                    <Receipt size={12} className="text-blue-400" />
+                                    <span className="text-[10px] text-blue-300 truncate max-w-[80px]">{t.receiptPath.split('/').pop()}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateBusinessTransaction(t.id, 'receiptPath', '');
+                                      }}
+                                      className="hover:text-red-400 text-blue-900 ml-1"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
+                                  <span className="hidden group-hover/cell:inline">Drag / Paste</span>
+                                </div>
+                              )}
                             </td>
                             <td className="p-0 text-center">
                               <button onClick={() => setBusinessTransactions(businessTransactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>

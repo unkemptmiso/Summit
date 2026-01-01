@@ -16,8 +16,16 @@ export type PersistenceStrategy = 'electron' | 'browser';
 // Extend Window interface
 declare global {
     interface Window {
-        showSaveFilePicker(options?: SaveFilePickerOptions): Promise<FileSystemFileHandle>;
-        showOpenFilePicker(options?: OpenFilePickerOptions): Promise<FileSystemFileHandle[]>;
+        showSaveFilePicker(options?: any): Promise<FileSystemFileHandle>;
+        showOpenFilePicker(options?: any): Promise<FileSystemFileHandle[]>;
+        electronAPI?: {
+            saveFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
+            readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
+            showSaveDialog: () => Promise<{ canceled: boolean; filePath?: string }>;
+            showOpenDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
+            ensureDir: (path: string) => Promise<{ success: boolean; error?: string }>;
+            saveReceipt: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
+        };
     }
 }
 
@@ -79,7 +87,7 @@ namespace Electron {
     }
 }
 
-export type PersistenceStrategy = 'electron' | 'browser';
+
 
 export function getStrategy(): PersistenceStrategy {
     return window.electronAPI ? 'electron' : 'browser';

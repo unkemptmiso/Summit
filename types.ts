@@ -6,6 +6,7 @@ export interface Transaction {
   amount: string | number;
   category: string;
   method: string;
+  receiptPath?: string;
   createdAt?: number;
 }
 
