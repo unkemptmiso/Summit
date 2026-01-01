@@ -2900,7 +2900,7 @@ const App: React.FC = () => {
 
     const width = 1000;
     const height = 400;
-    const padding = 50;
+    const padding = 80;
     const chartHeight = height - padding * 2;
     const chartWidth = width - padding * 2;
     const barWidth = Math.min(60, chartWidth / processedData.length - 20);
@@ -3078,7 +3078,7 @@ const App: React.FC = () => {
 
     const width = 1000;
     const height = 400;
-    const padding = 60;
+    const padding = 100;
 
     const values = data.map(d => d.netWorth);
     const minVal = Math.min(...values);
