@@ -211,6 +211,13 @@ const SIDEBAR_TABS = [
   { id: 'settings', icon: Settings, label: 'Settings' }
 ];
 
+const DASHBOARD_WIDGETS = [
+  { id: 'stats', label: 'Key Metrics (Net Worth, Spending, Income)' },
+  { id: 'savings', label: 'Savings/Burn Rate' },
+  { id: 'networth-chart', label: 'Net Worth History' },
+  { id: 'expense-chart', label: 'Expense Trends' }
+];
+
 const App: React.FC = () => {
   // --- UI State ---
   const [activeTab, setActiveTab] = useState('expenses');
@@ -218,6 +225,8 @@ const App: React.FC = () => {
   const [appFontSize, setAppFontSize] = useState<'sm' | 'base' | 'lg'>('base');
   const [toast, setToast] = useState<{ message: string, show: boolean } | null>(null);
   const [dashboardChartTimeView, setDashboardChartTimeView] = useState<'month' | 'year'>('month');
+  const [dashboardOrder, setDashboardOrder] = useState<string[]>(DASHBOARD_WIDGETS.map(w => w.id));
+  const [hiddenDashboardWidgets, setHiddenDashboardWidgets] = useState<string[]>([]);
 
   const theme = THEMES[currentTheme];
 
@@ -382,7 +391,9 @@ const App: React.FC = () => {
     drivingLog, drivingPurposes, irsMileageRate,
     chartToggles,
     customColors,
-    hiddenTabs
+    hiddenTabs,
+    dashboardOrder,
+    hiddenDashboardWidgets
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -394,7 +405,9 @@ const App: React.FC = () => {
     drivingLog, drivingPurposes, irsMileageRate,
     chartToggles,
     customColors,
-    hiddenTabs
+    hiddenTabs,
+    dashboardOrder,
+    hiddenDashboardWidgets
   ]);
 
   const loadData = (data: AppData) => {
@@ -439,6 +452,10 @@ const App: React.FC = () => {
 
     // Tab Visibility
     if (data.hiddenTabs) setHiddenTabs(data.hiddenTabs);
+
+    // Dashboard Customization
+    if (data.dashboardOrder) setDashboardOrder(data.dashboardOrder);
+    if (data.hiddenDashboardWidgets) setHiddenDashboardWidgets(data.hiddenDashboardWidgets);
 
     setToast({ message: "Data loaded successfully", show: true });
   };
@@ -1891,6 +1908,24 @@ const App: React.FC = () => {
     setIsRecurringModalOpen(true);
   };
 
+  const moveDashboardWidget = (id: string, direction: 'up' | 'down') => {
+    const index = dashboardOrder.indexOf(id);
+    if (index === -1) return;
+    const newOrder = [...dashboardOrder];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+    [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+    setDashboardOrder(newOrder);
+  };
+
+  const toggleDashboardWidgetVisibility = (id: string) => {
+    setHiddenDashboardWidgets(prev =>
+      prev.includes(id)
+        ? prev.filter(w => w !== id)
+        : [...prev, id]
+    );
+  };
+
   const toggleRecurringSelection = (id: string) => {
     const newSet = new Set(selectedRecurringIds);
     if (newSet.has(id)) newSet.delete(id);
@@ -3291,67 +3326,86 @@ const App: React.FC = () => {
           <div className="p-8 max-w-7xl mx-auto space-y-10">
             {activeTab === 'dashboard' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-gradient-to-br from-gray-900 to-black p-6 rounded-3xl border border-gray-800 shadow-xl">
-                    <p className="text-gray-400 text-sm font-medium mb-1">Total Net Worth</p>
-                    <h3 className="text-4xl font-bold tracking-tight text-white">${netWorthData.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                  </div>
+                {dashboardOrder
+                  .filter(id => !hiddenDashboardWidgets.includes(id))
+                  .map(widgetId => {
+                    if (widgetId === 'stats') {
+                      return (
+                        <div key="stats" className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="bg-gradient-to-br from-gray-900 to-black p-6 rounded-3xl border border-gray-800 shadow-xl">
+                            <p className="text-gray-400 text-sm font-medium mb-1">Total Net Worth</p>
+                            <h3 className="text-4xl font-bold tracking-tight text-white">${netWorthData.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
+                          </div>
 
-                  <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
-                    <p className="text-gray-400 text-sm font-medium mb-1">Monthly Spending</p>
-                    <h3 className="text-3xl font-bold text-white">${totalMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                  </div>
+                          <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
+                            <p className="text-gray-400 text-sm font-medium mb-1">Monthly Spending</p>
+                            <h3 className="text-3xl font-bold text-white">${totalMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
+                          </div>
 
-                  <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
-                    <p className="text-gray-400 text-sm font-medium mb-1">Estimated Net Income</p>
-                    <h3 className="text-3xl font-bold text-white">
-                      ${currentMonthIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </h3>
-                    <div className={`mt-4 flex items-center justify-between text-sm`}>
-                      <span className="text-gray-500 text-xs uppercase font-bold tracking-wider">Gross: ${incomeStreams.reduce((acc, s) => acc + (parseFloat(s.grossAmount.toString()) || 0), 0).toLocaleString()}</span>
-                      <span className={theme.text}>{incomeStreams.length} Streams</span>
-                    </div>
-                  </div>
-                </div>
+                          <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
+                            <p className="text-gray-400 text-sm font-medium mb-1">Estimated Net Income</p>
+                            <h3 className="text-3xl font-bold text-white">
+                              ${currentMonthIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </h3>
+                            <div className={`mt-4 flex items-center justify-between text-sm`}>
+                              <span className="text-gray-500 text-xs uppercase font-bold tracking-wider">Gross: ${incomeStreams.reduce((acc, s) => acc + (parseFloat(s.grossAmount.toString()) || 0), 0).toLocaleString()}</span>
+                              <span className={theme.text}>{incomeStreams.length} Streams</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
 
-                {/* Savings/Burn Rate Widget */}
-                <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-8 shadow-xl">
-                  <div className="flex justify-between items-end mb-4">
-                    <div>
-                      <h4 className="text-gray-400 text-sm font-medium mb-1">
-                        {savingsRate >= 0 ? "Monthly Savings Rate" : "Monthly Burn Rate"} {savingsRate >= 0 ? "💰" : "🔥"}
-                      </h4>
-                      <h3 className={`text-4xl font-bold ${savingsRate >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-                        {Math.abs(savingsRate).toFixed(1)}%
-                      </h3>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">
-                        {savingsRate >= 0 ? "Saved this month" : "Monthly Deficit"}
-                      </p>
-                      <p className={`text-xl font-mono font-bold ${savingsRate >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-                        ${Math.abs(savingsAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-800 h-4 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-1000 ${savingsRate >= 0 ? "bg-emerald-500 shadow-[0_0_15px_#10b981]" : "bg-rose-500 shadow-[0_0_15px_#f43f5e]"}`}
-                      style={{ width: `${Math.min(Math.max(Math.abs(savingsRate), 0), 100)}%` }}
-                    />
-                  </div>
-                  {Math.abs(savingsRate) > 100 && (
-                    <p className="text-[10px] text-gray-500 mt-2 italic text-right">
-                      * {savingsRate > 100 ? "Savings exceed 100% of net income" : "Spending exceeds 2x net income"}
-                    </p>
-                  )}
-                </div>
+                    if (widgetId === 'savings') {
+                      return (
+                        <div key="savings" className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-8 shadow-xl">
+                          <div className="flex justify-between items-end mb-4">
+                            <div>
+                              <h4 className="text-gray-400 text-sm font-medium mb-1">
+                                {savingsRate >= 0 ? "Monthly Savings Rate" : "Monthly Burn Rate"} {savingsRate >= 0 ? "💰" : "🔥"}
+                              </h4>
+                              <h3 className={`text-4xl font-bold ${savingsRate >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                                {Math.abs(savingsRate).toFixed(1)}%
+                              </h3>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">
+                                {savingsRate >= 0 ? "Saved this month" : "Monthly Deficit"}
+                              </p>
+                              <p className={`text-xl font-mono font-bold ${savingsRate >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                                ${Math.abs(savingsAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-800 h-4 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-1000 ${savingsRate >= 0 ? "bg-emerald-500 shadow-[0_0_15px_#10b981]" : "bg-rose-500 shadow-[0_0_15px_#f43f5e]"}`}
+                              style={{ width: `${Math.min(Math.max(Math.abs(savingsRate), 0), 100)}%` }}
+                            />
+                          </div>
+                          {Math.abs(savingsRate) > 100 && (
+                            <p className="text-[10px] text-gray-500 mt-2 italic text-right">
+                              * {savingsRate > 100 ? "Savings exceed 100% of net income" : "Spending exceeds 2x net income"}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
 
-                <NetWorthHistoryChart />
+                    if (widgetId === 'networth-chart') {
+                      return <NetWorthHistoryChart key="networth-chart" />;
+                    }
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <ExpenseTrendsChart />
-                </div>
+                    if (widgetId === 'expense-chart') {
+                      return (
+                        <div key="expense-chart" className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <ExpenseTrendsChart />
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })}
               </div>
             )}
 
@@ -4657,7 +4711,7 @@ const App: React.FC = () => {
                     <ChevronRight size={14} />
                   </button>
 
-                  {['Appearance', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
+                  {['Appearance', 'Dashboard', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
                     <button
                       key={section}
                       onClick={() => { setSettingsActiveSection(section); setSettingsSubSection(null); }}
@@ -4765,6 +4819,59 @@ const App: React.FC = () => {
                               {size.label}
                             </button>
                           ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* --- DASHBOARD SETTINGS REDIRECT --- */}
+                  {settingsActiveSection === 'Dashboard' && (
+                    <div className="max-w-2xl space-y-8 animate-in slide-in-from-right-4 duration-300">
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><LayoutDashboard size={20} className="text-blue-500" /> Dashboard Settings</h3>
+                        <p className="text-gray-500 mb-8">Customize your command center layout and components.</p>
+
+                        <div className="space-y-4 max-w-xl">
+                          {dashboardOrder.map((widgetId, index) => {
+                            const widget = DASHBOARD_WIDGETS.find(w => w.id === widgetId);
+                            if (!widget) return null;
+                            const isHidden = hiddenDashboardWidgets.includes(widgetId);
+
+                            return (
+                              <div key={widgetId} className={`flex items-center justify-between bg-gray-900/30 border border-gray-800 rounded-xl p-4 transition-all ${isHidden ? 'opacity-50' : 'opacity-100'}`}>
+                                <div className="flex items-center gap-4">
+                                  <div className="flex flex-col gap-1">
+                                    <button
+                                      disabled={index === 0}
+                                      onClick={() => moveDashboardWidget(widgetId, 'up')}
+                                      className="text-gray-600 hover:text-white disabled:opacity-30 disabled:hover:text-gray-600"
+                                    >
+                                      <ChevronUp size={14} />
+                                    </button>
+                                    <button
+                                      disabled={index === dashboardOrder.length - 1}
+                                      onClick={() => moveDashboardWidget(widgetId, 'down')}
+                                      className="text-gray-600 hover:text-white disabled:opacity-30 disabled:hover:text-gray-600"
+                                    >
+                                      <ChevronDown size={14} />
+                                    </button>
+                                  </div>
+                                  <div>
+                                    <span className="text-sm font-bold text-gray-200">{widget.label}</span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => toggleDashboardWidgetVisibility(widgetId)}
+                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isHidden ? 'bg-gray-800 text-gray-400 hover:text-white' : 'bg-blue-600/10 text-blue-400 hover:bg-blue-600/20'}`}
+                                >
+                                  {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                                  {isHidden ? 'HIDDEN' : 'VISIBLE'}
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>

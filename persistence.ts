@@ -87,6 +87,10 @@ export interface AppData {
 
     // Tab Visibility
     hiddenTabs?: string[];
+
+    // Dashboard Customization
+    dashboardOrder?: string[];
+    hiddenDashboardWidgets?: string[];
 }
 
 // --- Electron Types ---
