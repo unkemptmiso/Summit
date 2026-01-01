@@ -4718,17 +4718,6 @@ const App: React.FC = () => {
                 <div className="w-64 border-r border-gray-800 p-4 space-y-1 bg-gray-900/20">
                   <h2 className="text-xl font-bold text-white px-4 py-4 mb-2">Settings</h2>
 
-                  <button
-                    onClick={() => setSettingsActiveSection('Data Management')}
-                    className={`w-full text-left px-4 py-3 rounded-xl transition-all font-medium text-sm flex justify-between items-center mb-4 ${settingsActiveSection === 'Data Management' ? `bg-blue-900/20 text-blue-400 border border-blue-800/50` : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Archive size={16} />
-                      Data Management
-                    </div>
-                    <ChevronRight size={14} />
-                  </button>
-
                   {['Appearance', 'Dashboard', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
                     <button
                       key={section}
@@ -4739,6 +4728,17 @@ const App: React.FC = () => {
                       {settingsActiveSection === section && <ChevronRight size={14} />}
                     </button>
                   ))}
+
+                  <button
+                    onClick={() => setSettingsActiveSection('Data Management')}
+                    className={`w-full text-left px-4 py-3 rounded-xl transition-all font-medium text-sm flex justify-between items-center mt-4 ${settingsActiveSection === 'Data Management' ? `bg-blue-900/20 text-blue-400 border border-blue-800/50` : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Archive size={16} />
+                      Data Management
+                    </div>
+                    <ChevronRight size={14} />
+                  </button>
                 </div>
 
                 {/* Settings Content Area */}
@@ -4763,6 +4763,57 @@ const App: React.FC = () => {
                             >
                               <Download size={16} />
                               <span>EXPORT ALL</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-800 pt-8">
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Trash2 size={20} className="text-red-500" /> Clear All Data</h3>
+                        <p className="text-gray-500 text-sm mb-6">Reset the application to a clean state. This does not delete your save file.</p>
+
+                        <div className="bg-red-900/10 border border-red-800/30 rounded-2xl p-6">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="text-white font-bold mb-1">Clear All Inputted Data</h4>
+                              <p className="text-gray-400 text-sm max-w-sm">Removes all transactions, assets, income, driving logs, and history from memory. Your save file will not be modified.</p>
+                              <div className="mt-3 bg-red-900/20 border border-red-800/30 rounded-lg p-3">
+                                <p className="text-red-400 text-xs font-bold uppercase tracking-wider mb-1">⚠️ Warning</p>
+                                <p className="text-gray-400 text-xs">This action cannot be undone. Make sure to export your data first if you want to keep a backup.</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (confirm('Are you sure you want to clear ALL data? This will reset everything to default values.')) {
+                                  if (confirm('FINAL CONFIRMATION: This will permanently clear all your inputted data from memory. Your save file will NOT be modified. Continue?')) {
+                                    // Reset all data to initial states
+                                    setTransactions([]);
+                                    setAssetStructure(INITIAL_ASSET_STRUCTURE);
+                                    setMonthlyHistory([]);
+                                    setRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+                                    setCategories(INITIAL_CATEGORIES);
+                                    setPaymentMethods(INITIAL_PAYMENT_METHODS);
+                                    setBusinessTransactions([]);
+                                    setBusinessCategories(INITIAL_BUSINESS_CATEGORIES);
+                                    setBusinessPaymentMethods(INITIAL_PAYMENT_METHODS);
+                                    setBusinessRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+                                    setIncomeStreams(INITIAL_INCOME_STREAMS);
+                                    setIncomeHistory([]);
+                                    setDrivingLog([]);
+                                    setDrivingPurposes(INITIAL_DRIVING_PURPOSES);
+                                    setYearlyMileageRates({ '2024': 0.67, '2025': 0.70 });
+                                    setCustomColors({});
+                                    setHiddenTabs([]);
+                                    setDashboardOrder(DASHBOARD_WIDGETS.map(w => w.id));
+                                    setHiddenDashboardWidgets([]);
+                                    setToast({ message: 'All data cleared successfully', show: true });
+                                  }
+                                }
+                              }}
+                              className="flex items-center space-x-2 bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg shadow-red-900/20"
+                            >
+                              <Trash2 size={16} />
+                              <span>CLEAR ALL</span>
                             </button>
                           </div>
                         </div>
