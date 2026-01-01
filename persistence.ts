@@ -72,7 +72,7 @@ export interface AppData {
     // Driving
     drivingLog: DrivingLogEntry[];
     drivingPurposes: string[];
-    irsMileageRate: number;
+    yearlyMileageRates?: Record<string, number>;
 
     // Chart
     chartToggles: {

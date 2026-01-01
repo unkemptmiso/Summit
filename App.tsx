@@ -301,7 +301,10 @@ const App: React.FC = () => {
   const [paymentMethods, setPaymentMethods] = useState<string[]>(INITIAL_PAYMENT_METHODS);
   const [drivingPurposes, setDrivingPurposes] = useState<string[]>(INITIAL_DRIVING_PURPOSES);
   const [drivingLog, setDrivingLog] = useState<DrivingLogEntry[]>([]);
-  const [irsMileageRate, setIrsMileageRate] = useState(0.67);
+  const [yearlyMileageRates, setYearlyMileageRates] = useState<Record<string, number>>({
+    '2024': 0.67,
+    '2025': 0.70
+  });
   const [hiddenTabs, setHiddenTabs] = useState<string[]>([]);
 
   // Asset Editing State
@@ -388,7 +391,7 @@ const App: React.FC = () => {
     businessTransactions, businessCategories, businessPaymentMethods,
     businessRecurringExpenses, businessSearchQuery,
     incomeStreams, incomeHistory, incomeChartMetric,
-    drivingLog, drivingPurposes, irsMileageRate,
+    drivingLog, drivingPurposes, yearlyMileageRates,
     chartToggles,
     customColors,
     hiddenTabs,
@@ -402,7 +405,7 @@ const App: React.FC = () => {
     businessTransactions, businessCategories, businessPaymentMethods,
     businessRecurringExpenses, businessSearchQuery,
     incomeStreams, incomeHistory, incomeChartMetric,
-    drivingLog, drivingPurposes, irsMileageRate,
+    drivingLog, drivingPurposes, yearlyMileageRates,
     chartToggles,
     customColors,
     hiddenTabs,
@@ -442,7 +445,7 @@ const App: React.FC = () => {
     // Driving
     if (data.drivingLog) setDrivingLog(data.drivingLog);
     if (data.drivingPurposes) setDrivingPurposes(data.drivingPurposes);
-    if (data.irsMileageRate) setIrsMileageRate(data.irsMileageRate);
+    if (data.yearlyMileageRates) setYearlyMileageRates(data.yearlyMileageRates);
 
     // Chart
     if (data.chartToggles) setChartToggles(data.chartToggles);
@@ -1048,8 +1051,9 @@ const App: React.FC = () => {
           driveMap[y] = (driveMap[y] || 0) + (parseFloat(l.miles.toString()) || 0);
         });
         Object.keys(driveMap).sort().forEach(y => {
-          const ded = driveMap[y] * irsMileageRate;
-          rows.push(`${y},${driveMap[y].toFixed(2)},$${irsMileageRate},${ded.toFixed(2)}`);
+          const rate = yearlyMileageRates[y] || 0.67;
+          const ded = driveMap[y] * rate;
+          rows.push(`${y},${driveMap[y].toFixed(2)},$${rate},${ded.toFixed(2)}`);
         });
 
         zip.file("DrivingLog.csv", rows.join("\n"));
@@ -1881,14 +1885,15 @@ const App: React.FC = () => {
       return `${l.date},${l.miles},"${safeDest}","${safePurp}"`;
     });
 
-    const totalDeduction = totalYearlyMileage * irsMileageRate;
+    const currentRate = yearlyMileageRates[currentYear.toString()] || 0.67;
+    const totalDeduction = totalYearlyMileage * currentRate;
 
     const csvContent = [
       headers.join(","),
       ...csvRows,
       "",
       `TOTAL MILES FOR ${currentYear},${totalYearlyMileage.toFixed(2)}`,
-      `IRS DEDUCTION RATE,$${irsMileageRate.toFixed(3)}/mile`,
+      `DEDUCTION RATE,$${currentRate.toFixed(3)}/mile`,
       `TOTAL TAX DEDUCTION,$${totalDeduction.toFixed(2)}`
     ].join("\n");
 
@@ -4643,11 +4648,24 @@ const App: React.FC = () => {
                       <Plus size={18} /> <span>ADD ENTRY</span>
                     </button>
 
-                    <div className={`bg-gray-900/30 ${theme.text} px-6 py-3 rounded-2xl border ${theme.border}/30`}>
-                      <p className="text-xs font-bold uppercase tracking-widest opacity-70">Tax Deduction (YTD)</p>
-                      <p className="text-2xl font-bold">
-                        ${(totalYearlyMileage * irsMileageRate).toFixed(2)}
-                      </p>
+                    <div className={`bg-gray-900/30 ${theme.text} px-6 py-3 rounded-2xl border ${theme.border}/30 flex items-center gap-4`}>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest opacity-70">Tax Deduction (YTD)</p>
+                        <p className="text-2xl font-bold">
+                          ${(totalYearlyMileage * (yearlyMileageRates[currentYear.toString()] || 0.67)).toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-auto">
+                        <span className="text-xs text-gray-500">Rate:</span>
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={yearlyMileageRates[currentYear.toString()] || 0.67}
+                          onChange={(e) => setYearlyMileageRates(prev => ({ ...prev, [currentYear.toString()]: parseFloat(e.target.value) || 0.67 }))}
+                          className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm font-mono text-white outline-none focus:border-blue-500"
+                        />
+                        <span className="text-xs text-gray-500">/mi</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5166,28 +5184,6 @@ const App: React.FC = () => {
 
                   {settingsActiveSection === 'Driving Log' && !settingsSubSection && (
                     <div className="max-w-xl animate-in slide-in-from-right-4 duration-300 space-y-8">
-                      <div>
-                        <h3 className="text-lg font-bold text-white mb-6">Configuration</h3>
-                        <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-6">
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">IRS Standard Rate ($/mile)</label>
-                          <div className="flex items-center gap-4">
-                            <div className="relative flex-1">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                              <input
-                                type="number"
-                                step="0.001"
-                                value={irsMileageRate}
-                                onChange={(e) => setIrsMileageRate(parseFloat(e.target.value) || 0)}
-                                className={`w-full bg-gray-900 border border-gray-700 rounded-xl py-3 pl-8 pr-4 text-white font-mono focus:${theme.border} outline-none transition-colors`}
-                              />
-                            </div>
-                            <div className="text-xs text-gray-500 max-w-[150px]">
-                              Update annually based on IRS publications.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
                       <div
                         className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
                         onClick={() => setSettingsSubSection('purposes')}
