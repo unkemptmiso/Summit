@@ -601,6 +601,16 @@ const App: React.FC = () => {
 
   const totalMonthlySpend = currentMonthData.reduce((acc, curr) => acc + (parseFloat(curr.amount.toString()) || 0), 0);
 
+  const currentMonthIncome = useMemo(() => {
+    const sortKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}`;
+    const historyEntry = incomeHistory.find(h => h.sortKey === sortKey);
+    if (historyEntry) return historyEntry.totalNet;
+    return incomeStreams.reduce((acc, s) => acc + (parseFloat(s.netAmount.toString()) || 0), 0);
+  }, [incomeHistory, incomeStreams, currentYear, currentMonth]);
+
+  const savingsAmount = currentMonthIncome - totalMonthlySpend;
+  const savingsRate = currentMonthIncome > 0 ? (savingsAmount / currentMonthIncome) * 100 : 0;
+
   const averageMonthlySpend = useMemo(() => {
     return categoryStats.reduce((acc, curr) => acc + curr.avg12M, 0);
   }, [categoryStats]);
@@ -2946,8 +2956,7 @@ const App: React.FC = () => {
                       </div>
                       <span className="text-gray-400 font-mono">${amt.toLocaleString()}</span>
                     </div>
-                  ))
-                }
+                  ))}
               </div>
             </div>
           )}
@@ -3034,7 +3043,7 @@ const App: React.FC = () => {
                   <line x1={padding} y1={y} x2={width - padding} y2={y} stroke="#1f2937" strokeDasharray="4 4" strokeWidth="1" />
                   <text x={padding - 10} y={y + 4} textAnchor="end" className="fill-gray-500 text-xs font-mono">${Math.round(val).toLocaleString()}</text>
                 </g>
-              )
+              );
             })}
 
             {/* Area */}
@@ -3081,7 +3090,7 @@ const App: React.FC = () => {
 
               return (
                 <text key={i} x={getX(i)} y={height - 20} textAnchor="middle" className="fill-gray-500 text-xs font-bold uppercase">{label}</text>
-              )
+              );
             })}
           </svg>
 
@@ -3104,1973 +3113,2012 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-gray-100 font-sans selection:bg-blue-500/30 overflow-hidden relative">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-gray-800 flex flex-col p-6 space-y-8 bg-[#0d0d0d] flex-shrink-0">
-        <div className="flex items-center space-x-2 px-2">
-          <div className={`w-8 h-8 ${theme.primary} rounded-lg flex items-center justify-center`}>
-            <Mountain size={18} className="text-white" />
+    <>
+      <div className="flex h-screen bg-[#0a0a0a] text-gray-100 font-sans selection:bg-blue-500/30 overflow-hidden relative">
+        {/* Sidebar */}
+        <aside className="w-64 border-r border-gray-800 flex flex-col p-6 space-y-8 bg-[#0d0d0d] flex-shrink-0">
+          <div className="flex items-center space-x-2 px-2">
+            <div className={`w-8 h-8 ${theme.primary} rounded-lg flex items-center justify-center`}>
+              <Mountain size={18} className="text-white" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-white">Summit</h1>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white">Summit</h1>
-        </div>
-        <nav className="flex-1 space-y-2 overflow-y-auto pr-2">
-          {SIDEBAR_TABS.filter(item => !hiddenTabs.includes(item.id) || item.id === 'settings').map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeTab === item.id ? `${theme.primary} text-white shadow-lg ${theme.shadow}` : 'text-gray-400 hover:bg-gray-800'
-                }`}
-            >
-              <item.icon size={20} />
-              <span className="font-medium">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="pt-4 border-t border-gray-800 space-y-2">
-          {!fileHandle ? (
-            <>
-              <button onClick={handleCreateNewFile} className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-xs font-bold transition-all">
-                <SaveIcon size={14} /> <span>NEW FILE</span>
+          <nav className="flex-1 space-y-2 overflow-y-auto pr-2">
+            {SIDEBAR_TABS.filter(item => !hiddenTabs.includes(item.id) || item.id === 'settings').map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${activeTab === item.id ? `${theme.primary} text-white shadow-lg ${theme.shadow}` : 'text-gray-400 hover:bg-gray-800'
+                  }`}
+              >
+                <item.icon size={20} />
+                <span className="font-medium">{item.label}</span>
               </button>
-              <button onClick={handleOpenFile} className="w-full flex items-center justify-center space-x-2 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg text-xs font-bold transition-all">
-                <FolderOpen size={14} /> <span>OPEN FILE</span>
-              </button>
-            </>
-          ) : (
-            <div className="bg-gray-900/50 rounded-xl p-3 border border-gray-800">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                  <FileJson size={10} /> LINKED FILE
-                </span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${saveStatus === 'saved' ? 'bg-green-500/10 text-green-500' :
-                  saveStatus === 'saving' ? 'bg-yellow-500/10 text-yellow-500' :
-                    saveStatus === 'error' ? 'bg-red-500/10 text-red-500' :
-                      'bg-gray-500/10 text-gray-400'
-                  }`}>
-                  {saveStatus === 'saved' ? 'SAVED' : saveStatus === 'saving' ? 'SAVING...' : saveStatus === 'error' ? 'ERROR' : 'UNSAVED'}
-                </span>
-              </div>
-              <p className="text-xs text-gray-400 truncate mb-3" title={typeof fileHandle === 'string' ? fileHandle : fileHandle?.name}>
-                {typeof fileHandle === 'string' ? fileHandle.split(/[/\\]/).pop() : fileHandle?.name}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={handleSaveAs} className="flex items-center justify-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-1.5 rounded-lg text-[10px] font-bold transition-all">
-                  SAVE AS
+            ))}
+          </nav>
+
+          <div className="pt-4 border-t border-gray-800 space-y-2">
+            {!fileHandle ? (
+              <>
+                <button onClick={handleCreateNewFile} className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-xs font-bold transition-all">
+                  <SaveIcon size={14} /> <span>NEW FILE</span>
                 </button>
-                <button onClick={() => { updateFileHandle(null); setSaveStatus(null); }} className="flex items-center justify-center space-x-1 bg-gray-800 hover:bg-red-900/30 text-gray-300 hover:text-red-400 py-1.5 rounded-lg text-[10px] font-bold transition-all">
-                  CLOSE
+                <button onClick={handleOpenFile} className="w-full flex items-center justify-center space-x-2 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg text-xs font-bold transition-all">
+                  <FolderOpen size={14} /> <span>OPEN FILE</span>
                 </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
-        {activeTab !== 'settings' && activeTab !== 'dashboard' && (
-          <header className="sticky top-0 z-20 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-gray-800 p-6 flex justify-between items-center">
-            <div className="flex items-center space-x-4">
-              {activeTab === 'mileage' ? (
-                <>
-                  <button onClick={() => setCurrentYear(y => y - 1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
-                    <ChevronLeft size={20} />
-                  </button>
-                  <h2 className="text-lg font-semibold min-w-[140px] text-center text-white">
-                    {currentYear} Log
-                  </h2>
-                  <button onClick={() => setCurrentYear(y => y + 1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
-                    <ChevronRight size={20} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
-                    <ChevronLeft size={20} />
-                  </button>
-                  <h2 className="text-lg font-semibold min-w-[140px] text-center text-white">
-                    {months[currentMonth]} {currentYear}
-                  </h2>
-                  <button onClick={handleNextMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
-                    <ChevronRight size={20} />
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="flex space-x-4">
-              {activeTab === 'expenses' && (
-                <>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Avg. Spend (12M)</p>
-                    <p className="text-xl font-bold text-gray-400">${averageMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total Monthly Spend</p>
-                    <p className="text-xl font-bold text-white">${totalMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </>
-              )}
-              {activeTab === 'business' && (
-                <>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Avg. Business Spend (12M)</p>
-                    <p className="text-xl font-bold text-gray-400">${averageBusinessMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total Business Spend (YTD)</p>
-                    <p className="text-xl font-bold text-white">${totalBusinessSpendYTD.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </>
-              )}
-              {activeTab === 'assets' && (
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Current Net Worth</p>
-                  <p className="text-xl font-bold text-white">${netWorthData.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              </>
+            ) : (
+              <div className="bg-gray-900/50 rounded-xl p-3 border border-gray-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                    <FileJson size={10} /> LINKED FILE
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${saveStatus === 'saved' ? 'bg-green-500/10 text-green-500' :
+                    saveStatus === 'saving' ? 'bg-yellow-500/10 text-yellow-500' :
+                      saveStatus === 'error' ? 'bg-red-500/10 text-red-500' :
+                        'bg-gray-500/10 text-gray-400'
+                    }`}>
+                    {saveStatus === 'saved' ? 'SAVED' : saveStatus === 'saving' ? 'SAVING...' : saveStatus === 'error' ? 'ERROR' : 'UNSAVED'}
+                  </span>
                 </div>
-              )}
-              {activeTab === 'income' && (
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Net Income YTD</p>
-                  <p className="text-xl font-bold text-white">${totalIncomeYTD.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                </div>
-              )}
-            </div>
-          </header>
-        )}
-
-        <div className="p-8 max-w-7xl mx-auto space-y-10">
-          {activeTab === 'dashboard' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-gray-900 to-black p-6 rounded-3xl border border-gray-800 shadow-xl">
-                  <p className="text-gray-400 text-sm font-medium mb-1">Total Net Worth</p>
-                  <h3 className="text-4xl font-bold tracking-tight text-white">${netWorthData.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                </div>
-
-                <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
-                  <p className="text-gray-400 text-sm font-medium mb-1">Monthly Spending</p>
-                  <h3 className="text-3xl font-bold text-white">${totalMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                </div>
-
-                <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
-                  <p className="text-gray-400 text-sm font-medium mb-1">Estimated Net Income</p>
-                  <h3 className="text-3xl font-bold text-white">
-                    ${incomeStreams.reduce((acc, s) => acc + (parseFloat(s.netAmount.toString()) || 0), 0).toLocaleString()}
-                  </h3>
-                  <div className={`mt-4 flex items-center justify-between text-sm`}>
-                    <span className="text-gray-500 text-xs uppercase font-bold tracking-wider">Gross: ${incomeStreams.reduce((acc, s) => acc + (parseFloat(s.grossAmount.toString()) || 0), 0).toLocaleString()}</span>
-                    <span className={theme.text}>{incomeStreams.length} Streams</span>
-                  </div>
+                <p className="text-xs text-gray-400 truncate mb-3" title={typeof fileHandle === 'string' ? fileHandle : fileHandle?.name}>
+                  {typeof fileHandle === 'string' ? fileHandle.split(/[/\\]/).pop() : fileHandle?.name}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={handleSaveAs} className="flex items-center justify-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-1.5 rounded-lg text-[10px] font-bold transition-all">
+                    SAVE AS
+                  </button>
+                  <button onClick={() => { updateFileHandle(null); setSaveStatus(null); }} className="flex items-center justify-center space-x-1 bg-gray-800 hover:bg-red-900/30 text-gray-300 hover:text-red-400 py-1.5 rounded-lg text-[10px] font-bold transition-all">
+                    CLOSE
+                  </button>
                 </div>
               </div>
+            )}
+          </div>
+        </aside >
 
-              <NetWorthHistoryChart />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <ExpenseTrendsChart />
+        {/* Main */}
+        < main className="flex-1 overflow-y-auto bg-[#0a0a0a]" >
+          {activeTab !== 'settings' && activeTab !== 'dashboard' && (
+            <header className="sticky top-0 z-20 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-gray-800 p-6 flex justify-between items-center">
+              <div className="flex items-center space-x-4">
+                {activeTab === 'mileage' ? (
+                  <>
+                    <button onClick={() => setCurrentYear(y => y - 1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+                      <ChevronLeft size={20} />
+                    </button>
+                    <h2 className="text-lg font-semibold min-w-[140px] text-center text-white">
+                      {currentYear} Log
+                    </h2>
+                    <button onClick={() => setCurrentYear(y => y + 1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+                      <ChevronRight size={20} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+                      <ChevronLeft size={20} />
+                    </button>
+                    <h2 className="text-lg font-semibold min-w-[140px] text-center text-white">
+                      {months[currentMonth]} {currentYear}
+                    </h2>
+                    <button onClick={handleNextMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
+                      <ChevronRight size={20} />
+                    </button>
+                  </>
+                )}
               </div>
-            </div>
+              <div className="flex space-x-4">
+                {activeTab === 'expenses' && (
+                  <>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Avg. Spend (12M)</p>
+                      <p className="text-xl font-bold text-gray-400">${averageMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total Monthly Spend</p>
+                      <p className="text-xl font-bold text-white">${totalMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </div>
+                  </>
+                )}
+                {activeTab === 'business' && (
+                  <>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Avg. Business Spend (12M)</p>
+                      <p className="text-xl font-bold text-gray-400">${averageBusinessMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total Business Spend (YTD)</p>
+                      <p className="text-xl font-bold text-white">${totalBusinessSpendYTD.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </div>
+                  </>
+                )}
+                {activeTab === 'assets' && (
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Current Net Worth</p>
+                    <p className="text-xl font-bold text-white">${netWorthData.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+                {activeTab === 'income' && (
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Net Income YTD</p>
+                    <p className="text-xl font-bold text-white">${totalIncomeYTD.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  </div>
+                )}
+              </div>
+            </header>
           )}
 
-          {activeTab === 'expenses' && (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Category Breakdown</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="text-[10px] text-gray-500 uppercase border-b border-gray-800">
-                          <th className="pb-3 font-bold">Category</th>
-                          <th className="pb-3 font-bold text-right">This Month</th>
-                          <th className="pb-3 font-bold text-right">vs Last Month</th>
-                          <th className="pb-3 font-bold text-right">12M Avg</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-800/50">
-                        {categoryStats.map(stat => (
-                          <tr key={stat.name} className="group">
-                            <td className="py-3 text-sm font-medium text-gray-300">{stat.name}</td>
-                            <td className="py-3 text-sm text-right font-bold text-white">${stat.total.toFixed(2)}</td>
-                            <td className={`py-3 text-sm text-right font-medium flex items-center justify-end space-x-1 ${stat.diffPct > 0 ? 'text-red-400' : stat.diffPct < 0 ? 'text-green-400' : 'text-gray-500'}`}>
-                              {stat.diffPct > 0 ? <ArrowUpRight size={14} /> : stat.diffPct < 0 ? <ArrowDownRight size={14} /> : <Minus size={14} />}
-                              <span>{Math.abs(stat.diffPct).toFixed(0)}%</span>
-                            </td>
-                            <td className="py-3 text-sm text-right font-mono text-gray-500">${stat.avg12M.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 flex flex-col items-center justify-start relative shadow-xl overflow-hidden min-h-[450px]">
-                  <div className="w-full flex justify-between items-start mb-4">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Spend Mix</h3>
+          <div className="p-8 max-w-7xl mx-auto space-y-10">
+            {activeTab === 'dashboard' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-gradient-to-br from-gray-900 to-black p-6 rounded-3xl border border-gray-800 shadow-xl">
+                    <p className="text-gray-400 text-sm font-medium mb-1">Total Net Worth</p>
+                    <h3 className="text-4xl font-bold tracking-tight text-white">${netWorthData.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
                   </div>
 
-                  <div className="w-48 h-48 flex-shrink-0">
-                    <PieChartComp data={categoryStats} />
+                  <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
+                    <p className="text-gray-400 text-sm font-medium mb-1">Monthly Spending</p>
+                    <h3 className="text-3xl font-bold text-white">${totalMonthlySpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
                   </div>
 
-                  <div className="mt-8 w-full">
-                    <div className="flex flex-wrap justify-center gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                      {categoryStats.map((s, i) => {
-                        const color = customColors[s.name] || NEON_PALETTE[i % NEON_PALETTE.length];
-                        const percent = totalMonthlySpend > 0 ? (s.total / totalMonthlySpend) * 100 : 0;
-                        return (
-                          <div key={s.name} className="flex items-center space-x-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-800/80 transition-colors">
-                            <div
-                              className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]"
-                              style={{ backgroundColor: color, color: color }}
-                            />
-                            <span className="text-[11px] text-gray-300 font-medium whitespace-nowrap">{s.name}</span>
-                            <span className="text-[10px] text-gray-500 font-mono ml-1">{percent.toFixed(0)}%</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex justify-between items-center px-1">
-                  <div className="flex items-center space-x-4">
-                    <h2 className="text-xl font-bold text-white">Daily Ledger</h2>
-                    {/* Search Bar */}
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search size={14} className="text-gray-500 group-focus-within:text-blue-500 transition-colors" />
-                      </div>
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search ledger..."
-                        className="bg-gray-900/50 border border-gray-800 text-sm rounded-xl pl-9 pr-8 py-2 w-64 focus:w-80 transition-all outline-none text-white focus:border-blue-500/50 focus:bg-gray-900"
-                      />
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery("")}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-white"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex space-x-3">
-                    <input type="file" ref={fileInputRef} onChange={handleLedgerImport} className="hidden" accept=".csv" />
-                    <button onClick={() => setIsImportLedgerModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><FileUp size={14} /><span>IMPORT</span></button>
-                    <button onClick={() => setIsExportModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Download size={14} /><span>EXPORT</span></button>
-                    <button onClick={handleOpenRecurringModal} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Repeat size={14} /><span>RECURRING</span></button>
-                    <button onClick={addBlankRow} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg ${theme.shadow}`}><Plus size={14} /><span>ADD ROW</span></button>
-                  </div>
-                </div>
-
-                <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
-                  <table className="w-full text-left border-collapse table-fixed">
-                    <thead>
-                      <tr className="bg-gray-900/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                        <th className="px-4 py-3 w-40">Date</th>
-                        <th className="px-4 py-3">Description</th>
-                        <th className="px-4 py-3 w-32 text-right">Amount</th>
-                        <th className="px-4 py-3 w-48">Category</th>
-                        <th className="px-4 py-3 w-40">Method</th>
-                        <th className="px-4 py-3 w-12 text-center"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-800/50">
-                      {displayedTransactions.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="text-center py-8 text-gray-500 italic">No transactions found.</td>
-                        </tr>
-                      ) : (
-                        displayedTransactions.map(t => (
-                          <tr key={t.id} className={`hover:${theme.primary}/5 transition-colors group`}>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <input type="date" className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white border-none focus:bg-gray-800/30 [color-scheme:dark]" value={t.date} onChange={(e) => updateTransaction(t.id, 'date', e.target.value)} />
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <input type="text" placeholder="..." className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white font-medium border-none focus:bg-gray-800/30" value={t.description} onChange={(e) => updateTransaction(t.id, 'description', e.target.value)} />
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <div className="flex items-center h-11 px-4 focus-within:bg-gray-800/30">
-                                <span className="text-gray-600 mr-1 text-xs">$</span>
-                                <input type="number" step="0.01" className={`w-full bg-transparent outline-none text-sm text-right font-mono ${theme.text} font-bold border-none`} value={t.amount} onChange={(e) => updateTransaction(t.id, 'amount', e.target.value)} />
-                              </div>
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-400 border-none cursor-pointer focus:bg-gray-800/30" value={t.category} onChange={(e) => updateTransaction(t.id, 'category', e.target.value)}>
-                                {categories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-                              </select>
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateTransaction(t.id, 'method', e.target.value)}>
-                                {paymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
-                              </select>
-                            </td>
-                            <td className="p-0 text-center">
-                              <button onClick={() => setTransactions(transactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Import Modal */}
-                {isImportLedgerModalOpen && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
-                      <div>
-                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                          <FileUp size={20} className={theme.text} /> Import Ledger
-                        </h3>
-                        <p className="text-gray-500 text-sm mt-1">Select year and upload CSV file.</p>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Import Year</label>
-                          <input
-                            type="number"
-                            className="w-full bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-3 text-white font-mono focus:border-blue-500 outline-none"
-                            value={importLedgerYear}
-                            onChange={(e) => setImportLedgerYear(parseInt(e.target.value) || new Date().getFullYear())}
-                          />
-                          <p className="text-[10px] text-gray-600 mt-2">Used when CSV dates don't include a year (e.g. MM/DD).</p>
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-3 pt-2">
-                        <button
-                          onClick={() => {
-                            if (fileInputRef.current) fileInputRef.current.value = "";
-                            fileInputRef.current?.click();
-                          }}
-                          className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg`}
-                        >
-                          SELECT FILE & IMPORT
-                        </button>
-                        <button onClick={() => setIsImportLedgerModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
-                          CANCEL
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Export Modal */}
-                {isExportModalOpen && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
-                      <div>
-                        <h3 className="text-xl font-bold text-white">Export Ledger</h3>
-                        <p className="text-gray-500 text-sm mt-1">Select the data range you wish to export.</p>
-                      </div>
-
-                      <div className="space-y-3">
-                        {[
-                          { id: 'currentViewMonth', label: `Current Month (${months[currentMonth]})` },
-                          { id: 'currentViewYear', label: `Current Year (${currentYear})` },
-                          { id: 'last3Months', label: 'Last 3 Months' },
-                          { id: 'last6Months', label: 'Last 6 Months' },
-                          { id: 'last12Months', label: 'Last 12 Months' },
-                          { id: 'allTime', label: 'All Time' },
-                        ].map(opt => (
-                          <label key={opt.id} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${exportRange === opt.id ? `${theme.primary}/10 ${theme.border} text-white` : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-                            <input
-                              type="radio"
-                              name="exportRange"
-                              value={opt.id}
-                              checked={exportRange === opt.id}
-                              onChange={(e) => setExportRange(e.target.value)}
-                              className="hidden"
-                            />
-                            <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${exportRange === opt.id ? theme.border : 'border-gray-600'}`}>
-                              {exportRange === opt.id && <div className={`w-2 h-2 ${theme.primary} rounded-full`} />}
-                            </div>
-                            <span className="text-sm font-medium">{opt.label}</span>
-                          </label>
-                        ))}
-                      </div>
-
-                      <div className="flex space-x-3 pt-2">
-                        <button onClick={handleExport} className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors`}>
-                          DOWNLOAD CSV
-                        </button>
-                        <button onClick={() => setIsExportModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
-                          CANCEL
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Recurring Expenses Modal */}
-                {isRecurringModalOpen && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[85vh]">
-                      <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900/30 rounded-t-3xl">
-                        <div>
-                          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                            <Repeat size={20} className={theme.text} /> Recurring Expenses
-                          </h3>
-                          <p className="text-gray-500 text-sm mt-1">Select items to add to the current ledger month.</p>
-                        </div>
-                        <button onClick={() => setIsRecurringModalOpen(false)} className="p-2 text-gray-500 hover:text-white rounded-full hover:bg-gray-800">
-                          <X size={20} />
-                        </button>
-                      </div>
-
-                      <div className="overflow-y-auto flex-1 p-6">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                              <th className="pb-3 w-10 text-center">
-                                <input
-                                  type="checkbox"
-                                  className="accent-blue-500"
-                                  checked={selectedRecurringIds.size === recurringExpenses.length && recurringExpenses.length > 0}
-                                  onChange={(e) => {
-                                    if (e.target.checked) setSelectedRecurringIds(new Set(recurringExpenses.map(r => r.id)));
-                                    else setSelectedRecurringIds(new Set());
-                                  }}
-                                />
-                              </th>
-                              <th className="pb-3 pl-2">Description</th>
-                              <th className="pb-3 w-32 text-right">Amount</th>
-                              <th className="pb-3 w-40 pl-4">Category</th>
-                              <th className="pb-3 w-40 pl-4">Method</th>
-                              <th className="pb-3 w-10"></th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-800/50">
-                            {recurringExpenses.map(r => (
-                              <tr key={r.id} className="group hover:bg-gray-900/30">
-                                <td className="py-3 text-center">
-                                  <input
-                                    type="checkbox"
-                                    className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
-                                    checked={selectedRecurringIds.has(r.id)}
-                                    onChange={() => toggleRecurringSelection(r.id)}
-                                  />
-                                </td>
-                                <td className="py-3 pl-2">
-                                  <input
-                                    type="text"
-                                    value={r.description}
-                                    onChange={(e) => updateRecurringTemplate(r.id, 'description', e.target.value)}
-                                    className="bg-transparent text-sm text-white font-medium outline-none w-full placeholder-gray-600 focus:text-blue-400"
-                                    placeholder="Expense Name"
-                                  />
-                                </td>
-                                <td className="py-3 text-right">
-                                  <input
-                                    type="number"
-                                    value={r.amount}
-                                    onChange={(e) => updateRecurringTemplate(r.id, 'amount', e.target.value)}
-                                    className="bg-transparent text-sm text-white font-mono text-right outline-none w-full placeholder-gray-600 focus:text-blue-400"
-                                    placeholder="0.00"
-                                  />
-                                </td>
-                                <td className="py-3 pl-4">
-                                  <select
-                                    value={r.category}
-                                    onChange={(e) => updateRecurringTemplate(r.id, 'category', e.target.value)}
-                                    className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
-                                  >
-                                    {categories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-                                  </select>
-                                </td>
-                                <td className="py-3 pl-4">
-                                  <select
-                                    value={r.method}
-                                    onChange={(e) => updateRecurringTemplate(r.id, 'method', e.target.value)}
-                                    className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
-                                  >
-                                    {paymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
-                                  </select>
-                                </td>
-                                <td className="py-3 text-center">
-                                  <button onClick={() => deleteRecurringTemplate(r.id)} className="text-gray-700 hover:text-red-500 transition-colors">
-                                    <Trash2 size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <button
-                          onClick={addNewRecurringTemplate}
-                          className="mt-4 flex items-center space-x-2 text-xs font-bold text-gray-500 hover:text-white transition-colors"
-                        >
-                          <Plus size={14} /> <span>ADD NEW TEMPLATE</span>
-                        </button>
-                      </div>
-
-                      <div className="p-6 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/30 rounded-b-3xl">
-                        <button onClick={() => setIsRecurringModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
-                          CANCEL
-                        </button>
-                        <button
-                          onClick={handleAddRecurringToLedger}
-                          className={`px-8 py-3 ${theme.primary} ${theme.primaryHover} text-white font-bold rounded-xl text-sm transition-colors shadow-lg`}
-                          disabled={selectedRecurringIds.size === 0}
-                        >
-                          ADD {selectedRecurringIds.size} TO LEDGER
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {activeTab === 'business' && (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Business Spend Breakdown</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="text-[10px] text-gray-500 uppercase border-b border-gray-800">
-                          <th className="pb-3 font-bold">Category</th>
-                          <th className="pb-3 font-bold text-right">This Month</th>
-                          <th className="pb-3 font-bold text-right">vs Last Month</th>
-                          <th className="pb-3 font-bold text-right">12M Avg</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-800/50">
-                        {businessCategoryStats.map(stat => (
-                          <tr key={stat.name} className="group">
-                            <td className="py-3 text-sm font-medium text-gray-300">{stat.name}</td>
-                            <td className="py-3 text-sm text-right font-bold text-white">${stat.total.toFixed(2)}</td>
-                            <td className={`py-3 text-sm text-right font-medium flex items-center justify-end space-x-1 ${stat.diffPct > 0 ? 'text-red-400' : stat.diffPct < 0 ? 'text-green-400' : 'text-gray-500'}`}>
-                              {stat.diffPct > 0 ? <ArrowUpRight size={14} /> : stat.diffPct < 0 ? <ArrowDownRight size={14} /> : <Minus size={14} />}
-                              <span>{Math.abs(stat.diffPct).toFixed(0)}%</span>
-                            </td>
-                            <td className="py-3 text-sm text-right font-mono text-gray-500">${stat.avg12M.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 flex flex-col items-center justify-start relative shadow-xl overflow-hidden min-h-[450px]">
-                  <div className="w-full flex justify-between items-start mb-4">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Business Mix</h3>
-                  </div>
-
-                  <div className="w-48 h-48 flex-shrink-0">
-                    <PieChartComp data={businessCategoryStats} />
-                  </div>
-
-                  <div className="mt-8 w-full">
-                    <div className="flex flex-wrap justify-center gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                      {businessCategoryStats.map((s, i) => {
-                        const color = customColors[s.name] || NEON_PALETTE[i % NEON_PALETTE.length];
-                        const percent = totalBusinessMonthlySpend > 0 ? (s.total / totalBusinessMonthlySpend) * 100 : 0;
-                        return (
-                          <div key={s.name} className="flex items-center space-x-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-800/80 transition-colors">
-                            <div
-                              className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]"
-                              style={{ backgroundColor: color, color: color }}
-                            />
-                            <span className="text-[11px] text-gray-300 font-medium whitespace-nowrap">{s.name}</span>
-                            <span className="text-[10px] text-gray-500 font-mono ml-1">{percent.toFixed(0)}%</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex justify-between items-center px-1">
-                  <div className="flex items-center space-x-4">
-                    <h2 className="text-xl font-bold text-white">Business Ledger</h2>
-                    {/* Search Bar */}
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search size={14} className="text-gray-500 group-focus-within:text-blue-500 transition-colors" />
-                      </div>
-                      <input
-                        type="text"
-                        value={businessSearchQuery}
-                        onChange={(e) => setBusinessSearchQuery(e.target.value)}
-                        placeholder="Search business ledger..."
-                        className="bg-gray-900/50 border border-gray-800 text-sm rounded-xl pl-9 pr-8 py-2 w-64 focus:w-80 transition-all outline-none text-white focus:border-blue-500/50 focus:bg-gray-900"
-                      />
-                      {businessSearchQuery && (
-                        <button
-                          onClick={() => setBusinessSearchQuery("")}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-white"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex space-x-3">
-                    <input type="file" ref={businessFileInputRef} onChange={handleBusinessLedgerImport} className="hidden" accept=".csv" />
-                    <button onClick={() => setIsBusinessImportLedgerModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><FileUp size={14} /><span>IMPORT</span></button>
-                    <button onClick={() => setIsBusinessExportModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Download size={14} /><span>EXPORT</span></button>
-                    <button onClick={handleOpenBusinessRecurringModal} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Repeat size={14} /><span>RECURRING</span></button>
-                    <button onClick={addBlankBusinessRow} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg ${theme.shadow}`}><Plus size={14} /><span>ADD ROW</span></button>
-                  </div>
-                </div>
-
-                <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
-                  <table className="w-full text-left border-collapse table-fixed">
-                    <thead>
-                      <tr className="bg-gray-900/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                        <th className="px-4 py-3 w-40">Date</th>
-                        <th className="px-4 py-3">Description</th>
-                        <th className="px-4 py-3 w-32 text-right">Amount</th>
-                        <th className="px-4 py-3 w-48">Category</th>
-                        <th className="px-4 py-3 w-40">Method</th>
-                        <th className="px-4 py-3 w-32 text-center">Receipt</th>
-                        <th className="px-4 py-3 w-12 text-center"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-800/50">
-                      {displayedBusinessTransactions.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="text-center py-8 text-gray-500 italic">No business transactions found.</td>
-                        </tr>
-                      ) : (
-                        displayedBusinessTransactions.map(t => (
-                          <tr key={t.id} className={`hover:${theme.primary}/5 transition-colors group`}>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <input type="date" className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white border-none focus:bg-gray-800/30 [color-scheme:dark]" value={t.date} onChange={(e) => updateBusinessTransaction(t.id, 'date', e.target.value)} />
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <input type="text" placeholder="..." className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white font-medium border-none focus:bg-gray-800/30" value={t.description} onChange={(e) => updateBusinessTransaction(t.id, 'description', e.target.value)} />
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <div className="flex items-center h-11 px-4 focus-within:bg-gray-800/30">
-                                <span className="text-gray-600 mr-1 text-xs">$</span>
-                                <input type="number" step="0.01" className={`w-full bg-transparent outline-none text-sm text-right font-mono ${theme.text} font-bold border-none`} value={t.amount} onChange={(e) => updateBusinessTransaction(t.id, 'amount', e.target.value)} />
-                              </div>
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-400 border-none cursor-pointer focus:bg-gray-800/30" value={t.category} onChange={(e) => updateBusinessTransaction(t.id, 'category', e.target.value)}>
-                                {businessCategories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-                              </select>
-                            </td>
-                            <td className="p-0 border-r border-gray-800/20">
-                              <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateBusinessTransaction(t.id, 'method', e.target.value)}>
-                                {businessPaymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
-                              </select>
-                            </td>
-                            <td
-                              className="p-0 border-r border-gray-800/20 relative group/cell"
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                const file = e.dataTransfer.files[0];
-                                if (file) handleReceiptUpload(file, t.id);
-                              }}
-                              onPaste={(e) => {
-                                const file = e.clipboardData.files[0];
-                                if (file) handleReceiptUpload(file, t.id);
-                              }}
-                            >
-                              {t.receiptPath ? (
-                                <div className="flex items-center justify-center h-11 w-full px-2" title={t.receiptPath}>
-                                  <div className="flex items-center space-x-1 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/50 cursor-pointer" onClick={() => {/* Open file if possible */ }}>
-                                    <Receipt size={12} className="text-blue-400" />
-                                    <span className="text-[10px] text-blue-300 truncate max-w-[80px]">{t.receiptPath.split('/').pop()}</span>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        updateBusinessTransaction(t.id, 'receiptPath', '');
-                                      }}
-                                      className="hover:text-red-400 text-blue-900 ml-1"
-                                    >
-                                      <X size={10} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
-                                  <span className="hidden group-hover/cell:inline">Drag / Paste</span>
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-0 text-center">
-                              <button onClick={() => setBusinessTransactions(businessTransactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Business Import Modal */}
-                {isBusinessImportLedgerModalOpen && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
-                      <div>
-                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                          <FileUp size={20} className={theme.text} /> Import Business Ledger
-                        </h3>
-                        <p className="text-gray-500 text-sm mt-1">Select year and upload CSV file.</p>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Import Year</label>
-                          <input
-                            type="number"
-                            className="w-full bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-3 text-white font-mono focus:border-blue-500 outline-none"
-                            value={businessImportLedgerYear}
-                            onChange={(e) => setBusinessImportLedgerYear(parseInt(e.target.value) || new Date().getFullYear())}
-                          />
-                          <p className="text-[10px] text-gray-600 mt-2">Used when CSV dates don't include a year (e.g. MM/DD).</p>
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-3 pt-2">
-                        <button
-                          onClick={() => {
-                            if (businessFileInputRef.current) businessFileInputRef.current.value = "";
-                            businessFileInputRef.current?.click();
-                          }}
-                          className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg`}
-                        >
-                          SELECT FILE & IMPORT
-                        </button>
-                        <button onClick={() => setIsBusinessImportLedgerModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
-                          CANCEL
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Business Export Modal */}
-                {isBusinessExportModalOpen && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
-                      <div>
-                        <h3 className="text-xl font-bold text-white">Export Business Ledger</h3>
-                        <p className="text-gray-500 text-sm mt-1">Select the data range you wish to export.</p>
-                      </div>
-
-                      <div className="space-y-3">
-                        {[
-                          { id: 'currentViewMonth', label: `Current Month (${months[currentMonth]})` },
-                          { id: 'currentViewYear', label: `Current Year (${currentYear})` },
-                          { id: 'last3Months', label: 'Last 3 Months' },
-                          { id: 'last6Months', label: 'Last 6 Months' },
-                          { id: 'last12Months', label: 'Last 12 Months' },
-                          { id: 'allTime', label: 'All Time' },
-                        ].map(opt => (
-                          <label key={opt.id} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${businessExportRange === opt.id ? `${theme.primary}/10 ${theme.border} text-white` : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-                            <input
-                              type="radio"
-                              name="exportRange"
-                              value={opt.id}
-                              checked={businessExportRange === opt.id}
-                              onChange={(e) => setBusinessExportRange(e.target.value)}
-                              className="hidden"
-                            />
-                            <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${businessExportRange === opt.id ? theme.border : 'border-gray-600'}`}>
-                              {businessExportRange === opt.id && <div className={`w-2 h-2 ${theme.primary} rounded-full`} />}
-                            </div>
-                            <span className="text-sm font-medium">{opt.label}</span>
-                          </label>
-                        ))}
-                      </div>
-
-                      <div className="flex space-x-3 pt-2">
-                        <button onClick={handleBusinessExport} className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors`}>
-                          DOWNLOAD CSV
-                        </button>
-                        <button onClick={() => setIsBusinessExportModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
-                          CANCEL
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Business Recurring Expenses Modal */}
-                {isBusinessRecurringModalOpen && (
-                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[85vh]">
-                      <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900/30 rounded-t-3xl">
-                        <div>
-                          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                            <Repeat size={20} className={theme.text} /> Business Recurring Expenses
-                          </h3>
-                          <p className="text-gray-500 text-sm mt-1">Select items to add to the current ledger month.</p>
-                        </div>
-                        <button onClick={() => setIsBusinessRecurringModalOpen(false)} className="p-2 text-gray-500 hover:text-white rounded-full hover:bg-gray-800">
-                          <X size={20} />
-                        </button>
-                      </div>
-
-                      <div className="overflow-y-auto flex-1 p-6">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                              <th className="pb-3 w-10 text-center">
-                                <input
-                                  type="checkbox"
-                                  className="accent-blue-500"
-                                  checked={selectedBusinessRecurringIds.size === businessRecurringExpenses.length && businessRecurringExpenses.length > 0}
-                                  onChange={(e) => {
-                                    if (e.target.checked) setSelectedBusinessRecurringIds(new Set(businessRecurringExpenses.map(r => r.id)));
-                                    else setSelectedBusinessRecurringIds(new Set());
-                                  }}
-                                />
-                              </th>
-                              <th className="pb-3 pl-2">Description</th>
-                              <th className="pb-3 w-32 text-right">Amount</th>
-                              <th className="pb-3 w-40 pl-4">Category</th>
-                              <th className="pb-3 w-40 pl-4">Method</th>
-                              <th className="pb-3 w-10"></th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-800/50">
-                            {businessRecurringExpenses.map(r => (
-                              <tr key={r.id} className="group hover:bg-gray-900/30">
-                                <td className="py-3 text-center">
-                                  <input
-                                    type="checkbox"
-                                    className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
-                                    checked={selectedBusinessRecurringIds.has(r.id)}
-                                    onChange={() => toggleBusinessRecurringSelection(r.id)}
-                                  />
-                                </td>
-                                <td className="py-3 pl-2">
-                                  <input
-                                    type="text"
-                                    value={r.description}
-                                    onChange={(e) => updateBusinessRecurringTemplate(r.id, 'description', e.target.value)}
-                                    className="bg-transparent text-sm text-white font-medium outline-none w-full placeholder-gray-600 focus:text-blue-400"
-                                    placeholder="Expense Name"
-                                  />
-                                </td>
-                                <td className="py-3 text-right">
-                                  <input
-                                    type="number"
-                                    value={r.amount}
-                                    onChange={(e) => updateBusinessRecurringTemplate(r.id, 'amount', e.target.value)}
-                                    className="bg-transparent text-sm text-white font-mono text-right outline-none w-full placeholder-gray-600 focus:text-blue-400"
-                                    placeholder="0.00"
-                                  />
-                                </td>
-                                <td className="py-3 pl-4">
-                                  <select
-                                    value={r.category}
-                                    onChange={(e) => updateBusinessRecurringTemplate(r.id, 'category', e.target.value)}
-                                    className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
-                                  >
-                                    {businessCategories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-                                  </select>
-                                </td>
-                                <td className="py-3 pl-4">
-                                  <select
-                                    value={r.method}
-                                    onChange={(e) => updateBusinessRecurringTemplate(r.id, 'method', e.target.value)}
-                                    className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
-                                  >
-                                    {businessPaymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
-                                  </select>
-                                </td>
-                                <td className="py-3 text-center">
-                                  <button onClick={() => deleteBusinessRecurringTemplate(r.id)} className="text-gray-700 hover:text-red-500 transition-colors">
-                                    <Trash2 size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <button
-                          onClick={addNewBusinessRecurringTemplate}
-                          className="mt-4 flex items-center space-x-2 text-xs font-bold text-gray-500 hover:text-white transition-colors"
-                        >
-                          <Plus size={14} /> <span>ADD NEW TEMPLATE</span>
-                        </button>
-                      </div>
-
-                      <div className="p-6 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/30 rounded-b-3xl">
-                        <button onClick={() => setIsBusinessRecurringModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
-                          CANCEL
-                        </button>
-                        <button
-                          onClick={handleAddBusinessRecurringToLedger}
-                          className={`px-8 py-3 ${theme.primary} ${theme.primaryHover} text-white font-bold rounded-xl text-sm transition-colors shadow-lg`}
-                          disabled={selectedBusinessRecurringIds.size === 0}
-                        >
-                          ADD {selectedBusinessRecurringIds.size} TO LEDGER
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {activeTab === 'assets' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-              <div className="flex justify-between items-end">
-                <div>
-                  <h2 className="text-3xl font-bold text-white">Asset Watch</h2>
-                  <p className="text-gray-500 mt-1">Full control over your balance sheet.</p>
-                </div>
-                <div className="flex space-x-3">
-                  <input type="file" ref={assetHistoryFileInputRef} onChange={handleAssetHistoryImport} className="hidden" accept=".csv" />
-                  <button onClick={() => assetHistoryFileInputRef.current?.click()} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300 shadow-lg">
-                    <FileUp size={14} /><span>IMPORT HISTORY</span>
-                  </button>
-                  <button onClick={() => setIsAddingCategory(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold hover:bg-gray-700 text-gray-300">
-                    <FolderPlus size={14} /><span>NEW CATEGORY</span>
-                  </button>
-                  <button onClick={saveMonthToHistory} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg`}>
-                    <span>SAVE MONTH TO HISTORY</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-xl">
-                <table className="w-full text-left table-fixed">
-                  <thead>
-                    <tr className="bg-gray-900/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                      <th className="px-6 py-3">Current Net Worth</th>
-                      <th className="px-6 py-3">Prev. Month NW</th>
-                      <th className="px-6 py-3">Monthly Net Diff.</th>
-                      <th className="px-6 py-3">Monthly Yield</th>
-                      <th className="px-6 py-3">Yearly Yield</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="px-6 py-5 text-2xl font-bold text-white">${netWorthData.toLocaleString()}</td>
-                      <td className="px-6 py-5 text-xl font-medium text-gray-400">${previousNetWorth.toLocaleString()}</td>
-                      <td className={`px-6 py-5 text-xl font-bold ${monthlyNetDiff > 0 ? 'text-green-400' : monthlyNetDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                        {monthlyNetDiff > 0 ? '+' : ''}{monthlyNetDiff.toLocaleString()}
-                      </td>
-                      <td className={`px-6 py-5 text-xl font-bold ${monthlyYield > 0 ? 'text-green-400' : monthlyYield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                        {monthlyYield > 0 ? '+' : ''}{monthlyYield.toFixed(2)}%
-                      </td>
-                      <td className={`px-6 py-5 text-xl font-bold ${yearlyYield > 0 ? 'text-green-400' : yearlyYield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                        {yearlyYield > 0 ? '+' : ''}{yearlyYield.toFixed(2)}%
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Performance Chart */}
-              <PerformanceChart />
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Asset Allocation Pie Chart */}
-                {/* Asset Allocation Pie Chart */}
-                <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl flex flex-col relative min-h-[300px]">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Asset Allocation</h3>
-                  <div className="flex-1 flex flex-col items-center justify-center relative">
-                    <div className="w-56 h-56">
-                      <PieChartComp data={assetAllocationData} hideEmptyMessage={true} />
-                    </div>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-0 px-12 text-center">
-                      <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Total Assets</span>
-                      <span className={`font-bold text-white transition-all duration-300 ${totalAssetsValue.toLocaleString().length > 12 ? 'text-sm' :
-                        totalAssetsValue.toLocaleString().length > 9 ? 'text-base' : 'text-xl'
-                        }`}>
-                        ${totalAssetsValue.toLocaleString()}
-                      </span>
+                  <div className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800">
+                    <p className="text-gray-400 text-sm font-medium mb-1">Estimated Net Income</p>
+                    <h3 className="text-3xl font-bold text-white">
+                      ${currentMonthIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </h3>
+                    <div className={`mt-4 flex items-center justify-between text-sm`}>
+                      <span className="text-gray-500 text-xs uppercase font-bold tracking-wider">Gross: ${incomeStreams.reduce((acc, s) => acc + (parseFloat(s.grossAmount.toString()) || 0), 0).toLocaleString()}</span>
+                      <span className={theme.text}>{incomeStreams.length} Streams</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Breakdown List */}
-                <div className="lg:col-span-2 bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl">
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Allocation Details</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                    {assetAllocationData.length === 0 ? (
-                      <div className="col-span-2 text-center text-gray-500 italic py-8">No assets to display.</div>
-                    ) : (
-                      assetAllocationData.map((d, i) => (
-                        <div key={`${d.name}-${i}`} className="flex items-center justify-between p-4 rounded-2xl bg-gray-900/30 border border-gray-800 hover:border-gray-700 transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]"
-                              style={{
-                                backgroundColor: customColors[d.name] || NEON_PALETTE[i % NEON_PALETTE.length],
-                                color: customColors[d.name] || NEON_PALETTE[i % NEON_PALETTE.length]
-                              }}
-                            />
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-gray-300">{d.name}</span>
-                              <span className="text-[10px] text-gray-500 uppercase tracking-wider">{d.category}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-white font-mono">${d.total.toLocaleString()}</p>
-                            <p className="text-[10px] text-gray-500 font-mono font-bold">{totalAssetsValue > 0 ? ((d.total / totalAssetsValue) * 100).toFixed(1) : 0}%</p>
-                          </div>
-                        </div>
-                      ))
-                    )}
+                {/* Savings/Burn Rate Widget */}
+                <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-8 shadow-xl">
+                  <div className="flex justify-between items-end mb-4">
+                    <div>
+                      <h4 className="text-gray-400 text-sm font-medium mb-1">
+                        {savingsRate >= 0 ? "Monthly Savings Rate" : "Monthly Burn Rate"} {savingsRate >= 0 ? "💰" : "🔥"}
+                      </h4>
+                      <h3 className={`text-4xl font-bold ${savingsRate >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                        {Math.abs(savingsRate).toFixed(1)}%
+                      </h3>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">
+                        {savingsRate >= 0 ? "Saved this month" : "Monthly Deficit"}
+                      </p>
+                      <p className={`text-xl font-mono font-bold ${savingsRate >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                        ${Math.abs(savingsAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              {isAddingCategory && (
-                <div className="bg-gray-900/80 p-6 rounded-2xl border border-gray-700 flex flex-col md:flex-row md:items-center gap-4 animate-in fade-in slide-in-from-top-4 shadow-2xl">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Category Name</label>
-                    <input
-                      autoFocus
-                      type="text"
-                      placeholder="e.g. Real Estate, Crypto, Collectibles..."
-                      className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors`}
-                      value={newCategoryName}
-                      onChange={e => setNewCategoryName(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleSaveNewCategory()}
+                  <div className="w-full bg-gray-800 h-4 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-1000 ${savingsRate >= 0 ? "bg-emerald-500 shadow-[0_0_15px_#10b981]" : "bg-rose-500 shadow-[0_0_15px_#f43f5e]"}`}
+                      style={{ width: `${Math.min(Math.max(Math.abs(savingsRate), 0), 100)}%` }}
                     />
                   </div>
-                  <div className="flex items-center space-x-4 pt-2 md:pt-0">
-                    <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800">
-                      <button onClick={() => setNewCategoryType('asset')} className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${newCategoryType === 'asset' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}>ASSET</button>
-                      <button onClick={() => setNewCategoryType('liability')} className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${newCategoryType === 'liability' ? 'bg-red-900/30 text-red-500 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}>LIABILITY</button>
-                      <button onClick={() => setNewCategoryType('tracking')} className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${newCategoryType === 'tracking' ? 'bg-yellow-900/30 text-yellow-500 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}>TRACKING</button>
-                    </div>
-                    <button onClick={handleSaveNewCategory} className="px-6 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-gray-200 shadow-lg">SAVE</button>
-                    <button onClick={() => setIsAddingCategory(false)} className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800"><Minus size={20} /></button>
-                  </div>
+                  {Math.abs(savingsRate) > 100 && (
+                    <p className="text-[10px] text-gray-500 mt-2 italic text-right">
+                      * {savingsRate > 100 ? "Savings exceed 100% of net income" : "Spending exceeds 2x net income"}
+                    </p>
+                  )}
                 </div>
-              )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {assetStructure.map(category => (
-                  <div key={category.id} className="space-y-4">
-                    <div className="flex justify-between items-center px-2">
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center">
-                        {category.name}
-                        {category.isLiability && <span className="ml-2 px-1.5 py-0.5 bg-red-900/20 text-red-500 text-[8px] rounded">LIABILITY</span>}
-                        {category.isTracking && <span className="ml-2 px-1.5 py-0.5 bg-yellow-900/20 text-yellow-500 text-[8px] rounded">TRACKING ONLY</span>}
-                      </h4>
-                      <div className="flex space-x-2">
-                        <button onClick={() => { setAddingAssetTo(category.id); setNewAssetName(""); }} className={`p-1 ${theme.textHover} text-gray-600 transition-colors`} title="Add Item"><PlusCircle size={14} /></button>
-                        <button onClick={() => removeAssetCategory(category.id)} className="p-1 hover:text-red-500 text-gray-600 transition-colors" title="Delete Category"><Trash2 size={14} /></button>
+                <NetWorthHistoryChart />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <ExpenseTrendsChart />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'expenses' && (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Category Breakdown</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="text-[10px] text-gray-500 uppercase border-b border-gray-800">
+                            <th className="pb-3 font-bold">Category</th>
+                            <th className="pb-3 font-bold text-right">This Month</th>
+                            <th className="pb-3 font-bold text-right">vs Last Month</th>
+                            <th className="pb-3 font-bold text-right">12M Avg</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800/50">
+                          {categoryStats.map(stat => (
+                            <tr key={stat.name} className="group">
+                              <td className="py-3 text-sm font-medium text-gray-300">{stat.name}</td>
+                              <td className="py-3 text-sm text-right font-bold text-white">${stat.total.toFixed(2)}</td>
+                              <td className={`py-3 text-sm text-right font-medium flex items-center justify-end space-x-1 ${stat.diffPct > 0 ? 'text-red-400' : stat.diffPct < 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                                {stat.diffPct > 0 ? <ArrowUpRight size={14} /> : stat.diffPct < 0 ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+                                <span>{Math.abs(stat.diffPct).toFixed(0)}%</span>
+                              </td>
+                              <td className="py-3 text-sm text-right font-mono text-gray-500">${stat.avg12M.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 flex flex-col items-center justify-start relative shadow-xl overflow-hidden min-h-[450px]">
+                    <div className="w-full flex justify-between items-start mb-4">
+                      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Spend Mix</h3>
+                    </div>
+
+                    <div className="w-48 h-48 flex-shrink-0">
+                      <PieChartComp data={categoryStats} />
+                    </div>
+
+                    <div className="mt-8 w-full">
+                      <div className="flex flex-wrap justify-center gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                        {categoryStats.map((s, i) => {
+                          const color = customColors[s.name] || NEON_PALETTE[i % NEON_PALETTE.length];
+                          const percent = totalMonthlySpend > 0 ? (s.total / totalMonthlySpend) * 100 : 0;
+                          return (
+                            <div key={s.name} className="flex items-center space-x-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-800/80 transition-colors">
+                              <div
+                                className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]"
+                                style={{ backgroundColor: color, color: color }}
+                              />
+                              <span className="text-[11px] text-gray-300 font-medium whitespace-nowrap">{s.name}</span>
+                              <span className="text-[10px] text-gray-500 font-mono ml-1">{percent.toFixed(0)}%</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      {category.items.map(item => (
-                        <div key={item.id} className="bg-gray-900/40 p-4 rounded-2xl border border-gray-800 flex items-center justify-between group transition-all hover:border-gray-700">
-                          <div className="flex items-center space-x-3 flex-1">
-                            <button onClick={() => removeAssetItem(category.id, item.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"><Trash2 size={14} /></button>
-                            <span className="font-semibold text-sm">{item.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-gray-600 text-xs">$</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center px-1">
+                    <div className="flex items-center space-x-4">
+                      <h2 className="text-xl font-bold text-white">Daily Ledger</h2>
+                      {/* Search Bar */}
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Search size={14} className="text-gray-500 group-focus-within:text-blue-500 transition-colors" />
+                        </div>
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search ledger..."
+                          className="bg-gray-900/50 border border-gray-800 text-sm rounded-xl pl-9 pr-8 py-2 w-64 focus:w-80 transition-all outline-none text-white focus:border-blue-500/50 focus:bg-gray-900"
+                        />
+                        {searchQuery && (
+                          <button
+                            onClick={() => setSearchQuery("")}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-white"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex space-x-3">
+                      <input type="file" ref={fileInputRef} onChange={handleLedgerImport} className="hidden" accept=".csv" />
+                      <button onClick={() => setIsImportLedgerModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><FileUp size={14} /><span>IMPORT</span></button>
+                      <button onClick={() => setIsExportModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Download size={14} /><span>EXPORT</span></button>
+                      <button onClick={handleOpenRecurringModal} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Repeat size={14} /><span>RECURRING</span></button>
+                      <button onClick={addBlankRow} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg ${theme.shadow}`}><Plus size={14} /><span>ADD ROW</span></button>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+                    <table className="w-full text-left border-collapse table-fixed">
+                      <thead>
+                        <tr className="bg-gray-900/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                          <th className="px-4 py-3 w-40">Date</th>
+                          <th className="px-4 py-3">Description</th>
+                          <th className="px-4 py-3 w-32 text-right">Amount</th>
+                          <th className="px-4 py-3 w-48">Category</th>
+                          <th className="px-4 py-3 w-40">Method</th>
+                          <th className="px-4 py-3 w-12 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/50">
+                        {displayedTransactions.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-8 text-gray-500 italic">No transactions found.</td>
+                          </tr>
+                        ) : (
+                          displayedTransactions.map(t => (
+                            <tr key={t.id} className={`hover:${theme.primary}/5 transition-colors group`}>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <input type="date" className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white border-none focus:bg-gray-800/30 [color-scheme:dark]" value={t.date} onChange={(e) => updateTransaction(t.id, 'date', e.target.value)} />
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <input type="text" placeholder="..." className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white font-medium border-none focus:bg-gray-800/30" value={t.description} onChange={(e) => updateTransaction(t.id, 'description', e.target.value)} />
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <div className="flex items-center h-11 px-4 focus-within:bg-gray-800/30">
+                                  <span className="text-gray-600 mr-1 text-xs">$</span>
+                                  <input type="number" step="0.01" className={`w-full bg-transparent outline-none text-sm text-right font-mono ${theme.text} font-bold border-none`} value={t.amount} onChange={(e) => updateTransaction(t.id, 'amount', e.target.value)} />
+                                </div>
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-400 border-none cursor-pointer focus:bg-gray-800/30" value={t.category} onChange={(e) => updateTransaction(t.id, 'category', e.target.value)}>
+                                  {categories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                                </select>
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateTransaction(t.id, 'method', e.target.value)}>
+                                  {paymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
+                                </select>
+                              </td>
+                              <td className="p-0 text-center">
+                                <button onClick={() => setTransactions(transactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Import Modal */}
+                  {isImportLedgerModalOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
+                        <div>
+                          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <FileUp size={20} className={theme.text} /> Import Ledger
+                          </h3>
+                          <p className="text-gray-500 text-sm mt-1">Select year and upload CSV file.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Import Year</label>
                             <input
                               type="number"
+                              className="w-full bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-3 text-white font-mono focus:border-blue-500 outline-none"
+                              value={importLedgerYear}
+                              onChange={(e) => setImportLedgerYear(parseInt(e.target.value) || new Date().getFullYear())}
+                            />
+                            <p className="text-[10px] text-gray-600 mt-2">Used when CSV dates don't include a year (e.g. MM/DD).</p>
+                          </div>
+                        </div>
+
+                        <div className="flex space-x-3 pt-2">
+                          <button
+                            onClick={() => {
+                              if (fileInputRef.current) fileInputRef.current.value = "";
+                              fileInputRef.current?.click();
+                            }}
+                            className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg`}
+                          >
+                            SELECT FILE & IMPORT
+                          </button>
+                          <button onClick={() => setIsImportLedgerModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
+                            CANCEL
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Export Modal */}
+                  {isExportModalOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
+                        <div>
+                          <h3 className="text-xl font-bold text-white">Export Ledger</h3>
+                          <p className="text-gray-500 text-sm mt-1">Select the data range you wish to export.</p>
+                        </div>
+
+                        <div className="space-y-3">
+                          {[
+                            { id: 'currentViewMonth', label: `Current Month (${months[currentMonth]})` },
+                            { id: 'currentViewYear', label: `Current Year (${currentYear})` },
+                            { id: 'last3Months', label: 'Last 3 Months' },
+                            { id: 'last6Months', label: 'Last 6 Months' },
+                            { id: 'last12Months', label: 'Last 12 Months' },
+                            { id: 'allTime', label: 'All Time' },
+                          ].map(opt => (
+                            <label key={opt.id} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${exportRange === opt.id ? `${theme.primary}/10 ${theme.border} text-white` : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
+                              <input
+                                type="radio"
+                                name="exportRange"
+                                value={opt.id}
+                                checked={exportRange === opt.id}
+                                onChange={(e) => setExportRange(e.target.value)}
+                                className="hidden"
+                              />
+                              <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${exportRange === opt.id ? theme.border : 'border-gray-600'}`}>
+                                {exportRange === opt.id && <div className={`w-2 h-2 ${theme.primary} rounded-full`} />}
+                              </div>
+                              <span className="text-sm font-medium">{opt.label}</span>
+                            </label>
+                          ))}
+                        </div>
+
+                        <div className="flex space-x-3 pt-2">
+                          <button onClick={handleExport} className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors`}>
+                            DOWNLOAD CSV
+                          </button>
+                          <button onClick={() => setIsExportModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
+                            CANCEL
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recurring Expenses Modal */}
+                  {isRecurringModalOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[85vh]">
+                        <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900/30 rounded-t-3xl">
+                          <div>
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                              <Repeat size={20} className={theme.text} /> Recurring Expenses
+                            </h3>
+                            <p className="text-gray-500 text-sm mt-1">Select items to add to the current ledger month.</p>
+                          </div>
+                          <button onClick={() => setIsRecurringModalOpen(false)} className="p-2 text-gray-500 hover:text-white rounded-full hover:bg-gray-800">
+                            <X size={20} />
+                          </button>
+                        </div>
+
+                        <div className="overflow-y-auto flex-1 p-6">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                <th className="pb-3 w-10 text-center">
+                                  <input
+                                    type="checkbox"
+                                    className="accent-blue-500"
+                                    checked={selectedRecurringIds.size === recurringExpenses.length && recurringExpenses.length > 0}
+                                    onChange={(e) => {
+                                      if (e.target.checked) setSelectedRecurringIds(new Set(recurringExpenses.map(r => r.id)));
+                                      else setSelectedRecurringIds(new Set());
+                                    }}
+                                  />
+                                </th>
+                                <th className="pb-3 pl-2">Description</th>
+                                <th className="pb-3 w-32 text-right">Amount</th>
+                                <th className="pb-3 w-40 pl-4">Category</th>
+                                <th className="pb-3 w-40 pl-4">Method</th>
+                                <th className="pb-3 w-10"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/50">
+                              {recurringExpenses.map(r => (
+                                <tr key={r.id} className="group hover:bg-gray-900/30">
+                                  <td className="py-3 text-center">
+                                    <input
+                                      type="checkbox"
+                                      className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
+                                      checked={selectedRecurringIds.has(r.id)}
+                                      onChange={() => toggleRecurringSelection(r.id)}
+                                    />
+                                  </td>
+                                  <td className="py-3 pl-2">
+                                    <input
+                                      type="text"
+                                      value={r.description}
+                                      onChange={(e) => updateRecurringTemplate(r.id, 'description', e.target.value)}
+                                      className="bg-transparent text-sm text-white font-medium outline-none w-full placeholder-gray-600 focus:text-blue-400"
+                                      placeholder="Expense Name"
+                                    />
+                                  </td>
+                                  <td className="py-3 text-right">
+                                    <input
+                                      type="number"
+                                      value={r.amount}
+                                      onChange={(e) => updateRecurringTemplate(r.id, 'amount', e.target.value)}
+                                      className="bg-transparent text-sm text-white font-mono text-right outline-none w-full placeholder-gray-600 focus:text-blue-400"
+                                      placeholder="0.00"
+                                    />
+                                  </td>
+                                  <td className="py-3 pl-4">
+                                    <select
+                                      value={r.category}
+                                      onChange={(e) => updateRecurringTemplate(r.id, 'category', e.target.value)}
+                                      className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
+                                    >
+                                      {categories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="py-3 pl-4">
+                                    <select
+                                      value={r.method}
+                                      onChange={(e) => updateRecurringTemplate(r.id, 'method', e.target.value)}
+                                      className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
+                                    >
+                                      {paymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="py-3 text-center">
+                                    <button onClick={() => deleteRecurringTemplate(r.id)} className="text-gray-700 hover:text-red-500 transition-colors">
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <button
+                            onClick={addNewRecurringTemplate}
+                            className="mt-4 flex items-center space-x-2 text-xs font-bold text-gray-500 hover:text-white transition-colors"
+                          >
+                            <Plus size={14} /> <span>ADD NEW TEMPLATE</span>
+                          </button>
+                        </div>
+
+                        <div className="p-6 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/30 rounded-b-3xl">
+                          <button onClick={() => setIsRecurringModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
+                            CANCEL
+                          </button>
+                          <button
+                            onClick={handleAddRecurringToLedger}
+                            className={`px-8 py-3 ${theme.primary} ${theme.primaryHover} text-white font-bold rounded-xl text-sm transition-colors shadow-lg`}
+                            disabled={selectedRecurringIds.size === 0}
+                          >
+                            ADD {selectedRecurringIds.size} TO LEDGER
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {activeTab === 'business' && (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Business Spend Breakdown</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="text-[10px] text-gray-500 uppercase border-b border-gray-800">
+                            <th className="pb-3 font-bold">Category</th>
+                            <th className="pb-3 font-bold text-right">This Month</th>
+                            <th className="pb-3 font-bold text-right">vs Last Month</th>
+                            <th className="pb-3 font-bold text-right">12M Avg</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-800/50">
+                          {businessCategoryStats.map(stat => (
+                            <tr key={stat.name} className="group">
+                              <td className="py-3 text-sm font-medium text-gray-300">{stat.name}</td>
+                              <td className="py-3 text-sm text-right font-bold text-white">${stat.total.toFixed(2)}</td>
+                              <td className={`py-3 text-sm text-right font-medium flex items-center justify-end space-x-1 ${stat.diffPct > 0 ? 'text-red-400' : stat.diffPct < 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                                {stat.diffPct > 0 ? <ArrowUpRight size={14} /> : stat.diffPct < 0 ? <ArrowDownRight size={14} /> : <Minus size={14} />}
+                                <span>{Math.abs(stat.diffPct).toFixed(0)}%</span>
+                              </td>
+                              <td className="py-3 text-sm text-right font-mono text-gray-500">${stat.avg12M.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 flex flex-col items-center justify-start relative shadow-xl overflow-hidden min-h-[450px]">
+                    <div className="w-full flex justify-between items-start mb-4">
+                      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Business Mix</h3>
+                    </div>
+
+                    <div className="w-48 h-48 flex-shrink-0">
+                      <PieChartComp data={businessCategoryStats} />
+                    </div>
+
+                    <div className="mt-8 w-full">
+                      <div className="flex flex-wrap justify-center gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                        {businessCategoryStats.map((s, i) => {
+                          const color = customColors[s.name] || NEON_PALETTE[i % NEON_PALETTE.length];
+                          const percent = totalBusinessMonthlySpend > 0 ? (s.total / totalBusinessMonthlySpend) * 100 : 0;
+                          return (
+                            <div key={s.name} className="flex items-center space-x-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-800/80 transition-colors">
+                              <div
+                                className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]"
+                                style={{ backgroundColor: color, color: color }}
+                              />
+                              <span className="text-[11px] text-gray-300 font-medium whitespace-nowrap">{s.name}</span>
+                              <span className="text-[10px] text-gray-500 font-mono ml-1">{percent.toFixed(0)}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center px-1">
+                    <div className="flex items-center space-x-4">
+                      <h2 className="text-xl font-bold text-white">Business Ledger</h2>
+                      {/* Search Bar */}
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Search size={14} className="text-gray-500 group-focus-within:text-blue-500 transition-colors" />
+                        </div>
+                        <input
+                          type="text"
+                          value={businessSearchQuery}
+                          onChange={(e) => setBusinessSearchQuery(e.target.value)}
+                          placeholder="Search business ledger..."
+                          className="bg-gray-900/50 border border-gray-800 text-sm rounded-xl pl-9 pr-8 py-2 w-64 focus:w-80 transition-all outline-none text-white focus:border-blue-500/50 focus:bg-gray-900"
+                        />
+                        {businessSearchQuery && (
+                          <button
+                            onClick={() => setBusinessSearchQuery("")}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-white"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex space-x-3">
+                      <input type="file" ref={businessFileInputRef} onChange={handleBusinessLedgerImport} className="hidden" accept=".csv" />
+                      <button onClick={() => setIsBusinessImportLedgerModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><FileUp size={14} /><span>IMPORT</span></button>
+                      <button onClick={() => setIsBusinessExportModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Download size={14} /><span>EXPORT</span></button>
+                      <button onClick={handleOpenBusinessRecurringModal} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300"><Repeat size={14} /><span>RECURRING</span></button>
+                      <button onClick={addBlankBusinessRow} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg ${theme.shadow}`}><Plus size={14} /><span>ADD ROW</span></button>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+                    <table className="w-full text-left border-collapse table-fixed">
+                      <thead>
+                        <tr className="bg-gray-900/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                          <th className="px-4 py-3 w-40">Date</th>
+                          <th className="px-4 py-3">Description</th>
+                          <th className="px-4 py-3 w-32 text-right">Amount</th>
+                          <th className="px-4 py-3 w-48">Category</th>
+                          <th className="px-4 py-3 w-40">Method</th>
+                          <th className="px-4 py-3 w-32 text-center">Receipt</th>
+                          <th className="px-4 py-3 w-12 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/50">
+                        {displayedBusinessTransactions.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-8 text-gray-500 italic">No business transactions found.</td>
+                          </tr>
+                        ) : (
+                          displayedBusinessTransactions.map(t => (
+                            <tr key={t.id} className={`hover:${theme.primary}/5 transition-colors group`}>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <input type="date" className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white border-none focus:bg-gray-800/30 [color-scheme:dark]" value={t.date} onChange={(e) => updateBusinessTransaction(t.id, 'date', e.target.value)} />
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <input type="text" placeholder="..." className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white font-medium border-none focus:bg-gray-800/30" value={t.description} onChange={(e) => updateBusinessTransaction(t.id, 'description', e.target.value)} />
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <div className="flex items-center h-11 px-4 focus-within:bg-gray-800/30">
+                                  <span className="text-gray-600 mr-1 text-xs">$</span>
+                                  <input type="number" step="0.01" className={`w-full bg-transparent outline-none text-sm text-right font-mono ${theme.text} font-bold border-none`} value={t.amount} onChange={(e) => updateBusinessTransaction(t.id, 'amount', e.target.value)} />
+                                </div>
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-400 border-none cursor-pointer focus:bg-gray-800/30" value={t.category} onChange={(e) => updateBusinessTransaction(t.id, 'category', e.target.value)}>
+                                  {businessCategories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                                </select>
+                              </td>
+                              <td className="p-0 border-r border-gray-800/20">
+                                <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateBusinessTransaction(t.id, 'method', e.target.value)}>
+                                  {businessPaymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
+                                </select>
+                              </td>
+                              <td
+                                className="p-0 border-r border-gray-800/20 relative group/cell"
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const file = e.dataTransfer.files[0];
+                                  if (file) handleReceiptUpload(file, t.id);
+                                }}
+                                onPaste={(e) => {
+                                  const file = e.clipboardData.files[0];
+                                  if (file) handleReceiptUpload(file, t.id);
+                                }}
+                              >
+                                {t.receiptPath ? (
+                                  <div className="flex items-center justify-center h-11 w-full px-2" title={t.receiptPath}>
+                                    <div className="flex items-center space-x-1 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/50 cursor-pointer" onClick={() => {/* Open file if possible */ }}>
+                                      <Receipt size={12} className="text-blue-400" />
+                                      <span className="text-[10px] text-blue-300 truncate max-w-[80px]">{t.receiptPath.split('/').pop()}</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          updateBusinessTransaction(t.id, 'receiptPath', '');
+                                        }}
+                                        className="hover:text-red-400 text-blue-900 ml-1"
+                                      >
+                                        <X size={10} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
+                                    <span className="hidden group-hover/cell:inline">Drag / Paste</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-0 text-center">
+                                <button onClick={() => setBusinessTransactions(businessTransactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Business Import Modal */}
+                  {isBusinessImportLedgerModalOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
+                        <div>
+                          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <FileUp size={20} className={theme.text} /> Import Business Ledger
+                          </h3>
+                          <p className="text-gray-500 text-sm mt-1">Select year and upload CSV file.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Import Year</label>
+                            <input
+                              type="number"
+                              className="w-full bg-gray-900/50 border border-gray-800 rounded-xl px-4 py-3 text-white font-mono focus:border-blue-500 outline-none"
+                              value={businessImportLedgerYear}
+                              onChange={(e) => setBusinessImportLedgerYear(parseInt(e.target.value) || new Date().getFullYear())}
+                            />
+                            <p className="text-[10px] text-gray-600 mt-2">Used when CSV dates don't include a year (e.g. MM/DD).</p>
+                          </div>
+                        </div>
+
+                        <div className="flex space-x-3 pt-2">
+                          <button
+                            onClick={() => {
+                              if (businessFileInputRef.current) businessFileInputRef.current.value = "";
+                              businessFileInputRef.current?.click();
+                            }}
+                            className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg`}
+                          >
+                            SELECT FILE & IMPORT
+                          </button>
+                          <button onClick={() => setIsBusinessImportLedgerModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
+                            CANCEL
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Business Export Modal */}
+                  {isBusinessExportModalOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
+                        <div>
+                          <h3 className="text-xl font-bold text-white">Export Business Ledger</h3>
+                          <p className="text-gray-500 text-sm mt-1">Select the data range you wish to export.</p>
+                        </div>
+
+                        <div className="space-y-3">
+                          {[
+                            { id: 'currentViewMonth', label: `Current Month (${months[currentMonth]})` },
+                            { id: 'currentViewYear', label: `Current Year (${currentYear})` },
+                            { id: 'last3Months', label: 'Last 3 Months' },
+                            { id: 'last6Months', label: 'Last 6 Months' },
+                            { id: 'last12Months', label: 'Last 12 Months' },
+                            { id: 'allTime', label: 'All Time' },
+                          ].map(opt => (
+                            <label key={opt.id} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${businessExportRange === opt.id ? `${theme.primary}/10 ${theme.border} text-white` : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
+                              <input
+                                type="radio"
+                                name="exportRange"
+                                value={opt.id}
+                                checked={businessExportRange === opt.id}
+                                onChange={(e) => setBusinessExportRange(e.target.value)}
+                                className="hidden"
+                              />
+                              <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${businessExportRange === opt.id ? theme.border : 'border-gray-600'}`}>
+                                {businessExportRange === opt.id && <div className={`w-2 h-2 ${theme.primary} rounded-full`} />}
+                              </div>
+                              <span className="text-sm font-medium">{opt.label}</span>
+                            </label>
+                          ))}
+                        </div>
+
+                        <div className="flex space-x-3 pt-2">
+                          <button onClick={handleBusinessExport} className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors`}>
+                            DOWNLOAD CSV
+                          </button>
+                          <button onClick={() => setIsBusinessExportModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
+                            CANCEL
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Business Recurring Expenses Modal */}
+                  {isBusinessRecurringModalOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[85vh]">
+                        <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900/30 rounded-t-3xl">
+                          <div>
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                              <Repeat size={20} className={theme.text} /> Business Recurring Expenses
+                            </h3>
+                            <p className="text-gray-500 text-sm mt-1">Select items to add to the current ledger month.</p>
+                          </div>
+                          <button onClick={() => setIsBusinessRecurringModalOpen(false)} className="p-2 text-gray-500 hover:text-white rounded-full hover:bg-gray-800">
+                            <X size={20} />
+                          </button>
+                        </div>
+
+                        <div className="overflow-y-auto flex-1 p-6">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                                <th className="pb-3 w-10 text-center">
+                                  <input
+                                    type="checkbox"
+                                    className="accent-blue-500"
+                                    checked={selectedBusinessRecurringIds.size === businessRecurringExpenses.length && businessRecurringExpenses.length > 0}
+                                    onChange={(e) => {
+                                      if (e.target.checked) setSelectedBusinessRecurringIds(new Set(businessRecurringExpenses.map(r => r.id)));
+                                      else setSelectedBusinessRecurringIds(new Set());
+                                    }}
+                                  />
+                                </th>
+                                <th className="pb-3 pl-2">Description</th>
+                                <th className="pb-3 w-32 text-right">Amount</th>
+                                <th className="pb-3 w-40 pl-4">Category</th>
+                                <th className="pb-3 w-40 pl-4">Method</th>
+                                <th className="pb-3 w-10"></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800/50">
+                              {businessRecurringExpenses.map(r => (
+                                <tr key={r.id} className="group hover:bg-gray-900/30">
+                                  <td className="py-3 text-center">
+                                    <input
+                                      type="checkbox"
+                                      className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
+                                      checked={selectedBusinessRecurringIds.has(r.id)}
+                                      onChange={() => toggleBusinessRecurringSelection(r.id)}
+                                    />
+                                  </td>
+                                  <td className="py-3 pl-2">
+                                    <input
+                                      type="text"
+                                      value={r.description}
+                                      onChange={(e) => updateBusinessRecurringTemplate(r.id, 'description', e.target.value)}
+                                      className="bg-transparent text-sm text-white font-medium outline-none w-full placeholder-gray-600 focus:text-blue-400"
+                                      placeholder="Expense Name"
+                                    />
+                                  </td>
+                                  <td className="py-3 text-right">
+                                    <input
+                                      type="number"
+                                      value={r.amount}
+                                      onChange={(e) => updateBusinessRecurringTemplate(r.id, 'amount', e.target.value)}
+                                      className="bg-transparent text-sm text-white font-mono text-right outline-none w-full placeholder-gray-600 focus:text-blue-400"
+                                      placeholder="0.00"
+                                    />
+                                  </td>
+                                  <td className="py-3 pl-4">
+                                    <select
+                                      value={r.category}
+                                      onChange={(e) => updateBusinessRecurringTemplate(r.id, 'category', e.target.value)}
+                                      className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
+                                    >
+                                      {businessCategories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="py-3 pl-4">
+                                    <select
+                                      value={r.method}
+                                      onChange={(e) => updateBusinessRecurringTemplate(r.id, 'method', e.target.value)}
+                                      className="bg-transparent text-xs text-gray-400 outline-none w-full cursor-pointer focus:text-white"
+                                    >
+                                      {businessPaymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
+                                    </select>
+                                  </td>
+                                  <td className="py-3 text-center">
+                                    <button onClick={() => deleteBusinessRecurringTemplate(r.id)} className="text-gray-700 hover:text-red-500 transition-colors">
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <button
+                            onClick={addNewBusinessRecurringTemplate}
+                            className="mt-4 flex items-center space-x-2 text-xs font-bold text-gray-500 hover:text-white transition-colors"
+                          >
+                            <Plus size={14} /> <span>ADD NEW TEMPLATE</span>
+                          </button>
+                        </div>
+
+                        <div className="p-6 border-t border-gray-800 flex justify-end gap-3 bg-gray-900/30 rounded-b-3xl">
+                          <button onClick={() => setIsBusinessRecurringModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
+                            CANCEL
+                          </button>
+                          <button
+                            onClick={handleAddBusinessRecurringToLedger}
+                            className={`px-8 py-3 ${theme.primary} ${theme.primaryHover} text-white font-bold rounded-xl text-sm transition-colors shadow-lg`}
+                            disabled={selectedBusinessRecurringIds.size === 0}
+                          >
+                            ADD {selectedBusinessRecurringIds.size} TO LEDGER
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {activeTab === 'assets' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <h2 className="text-3xl font-bold text-white">Asset Watch</h2>
+                    <p className="text-gray-500 mt-1">Full control over your balance sheet.</p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <input type="file" ref={assetHistoryFileInputRef} onChange={handleAssetHistoryImport} className="hidden" accept=".csv" />
+                    <button onClick={() => assetHistoryFileInputRef.current?.click()} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300 shadow-lg">
+                      <FileUp size={14} /><span>IMPORT HISTORY</span>
+                    </button>
+                    <button onClick={() => setIsAddingCategory(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold hover:bg-gray-700 text-gray-300">
+                      <FolderPlus size={14} /><span>NEW CATEGORY</span>
+                    </button>
+                    <button onClick={saveMonthToHistory} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg`}>
+                      <span>SAVE MONTH TO HISTORY</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-xl">
+                  <table className="w-full text-left table-fixed">
+                    <thead>
+                      <tr className="bg-gray-900/50 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                        <th className="px-6 py-3">Current Net Worth</th>
+                        <th className="px-6 py-3">Prev. Month NW</th>
+                        <th className="px-6 py-3">Monthly Net Diff.</th>
+                        <th className="px-6 py-3">Monthly Yield</th>
+                        <th className="px-6 py-3">Yearly Yield</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="px-6 py-5 text-2xl font-bold text-white">${netWorthData.toLocaleString()}</td>
+                        <td className="px-6 py-5 text-xl font-medium text-gray-400">${previousNetWorth.toLocaleString()}</td>
+                        <td className={`px-6 py-5 text-xl font-bold ${monthlyNetDiff > 0 ? 'text-green-400' : monthlyNetDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                          {monthlyNetDiff > 0 ? '+' : ''}{monthlyNetDiff.toLocaleString()}
+                        </td>
+                        <td className={`px-6 py-5 text-xl font-bold ${monthlyYield > 0 ? 'text-green-400' : monthlyYield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                          {monthlyYield > 0 ? '+' : ''}{monthlyYield.toFixed(2)}%
+                        </td>
+                        <td className={`px-6 py-5 text-xl font-bold ${yearlyYield > 0 ? 'text-green-400' : yearlyYield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                          {yearlyYield > 0 ? '+' : ''}{yearlyYield.toFixed(2)}%
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Performance Chart */}
+                <PerformanceChart />
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Asset Allocation Pie Chart */}
+                  {/* Asset Allocation Pie Chart */}
+                  <div className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl flex flex-col relative min-h-[300px]">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Asset Allocation</h3>
+                    <div className="flex-1 flex flex-col items-center justify-center relative">
+                      <div className="w-56 h-56">
+                        <PieChartComp data={assetAllocationData} hideEmptyMessage={true} />
+                      </div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-0 px-12 text-center">
+                        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Total Assets</span>
+                        <span className={`font-bold text-white transition-all duration-300 ${totalAssetsValue.toLocaleString().length > 12 ? 'text-sm' :
+                          totalAssetsValue.toLocaleString().length > 9 ? 'text-base' : 'text-xl'
+                          }`}>
+                          ${totalAssetsValue.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Breakdown List */}
+                  <div className="lg:col-span-2 bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Allocation Details</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      {assetAllocationData.length === 0 ? (
+                        <div className="col-span-2 text-center text-gray-500 italic py-8">No assets to display.</div>
+                      ) : (
+                        assetAllocationData.map((d, i) => (
+                          <div key={`${d.name}-${i}`} className="flex items-center justify-between p-4 rounded-2xl bg-gray-900/30 border border-gray-800 hover:border-gray-700 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]"
+                                style={{
+                                  backgroundColor: customColors[d.name] || NEON_PALETTE[i % NEON_PALETTE.length],
+                                  color: customColors[d.name] || NEON_PALETTE[i % NEON_PALETTE.length]
+                                }}
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-gray-300">{d.name}</span>
+                                <span className="text-[10px] text-gray-500 uppercase tracking-wider">{d.category}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-white font-mono">${d.total.toLocaleString()}</p>
+                              <p className="text-[10px] text-gray-500 font-mono font-bold">{totalAssetsValue > 0 ? ((d.total / totalAssetsValue) * 100).toFixed(1) : 0}%</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {isAddingCategory && (
+                  <div className="bg-gray-900/80 p-6 rounded-2xl border border-gray-700 flex flex-col md:flex-row md:items-center gap-4 animate-in fade-in slide-in-from-top-4 shadow-2xl">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Category Name</label>
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="e.g. Real Estate, Crypto, Collectibles..."
+                        className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors`}
+                        value={newCategoryName}
+                        onChange={e => setNewCategoryName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSaveNewCategory()}
+                      />
+                    </div>
+                    <div className="flex items-center space-x-4 pt-2 md:pt-0">
+                      <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800">
+                        <button onClick={() => setNewCategoryType('asset')} className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${newCategoryType === 'asset' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}>ASSET</button>
+                        <button onClick={() => setNewCategoryType('liability')} className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${newCategoryType === 'liability' ? 'bg-red-900/30 text-red-500 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}>LIABILITY</button>
+                        <button onClick={() => setNewCategoryType('tracking')} className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${newCategoryType === 'tracking' ? 'bg-yellow-900/30 text-yellow-500 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}>TRACKING</button>
+                      </div>
+                      <button onClick={handleSaveNewCategory} className="px-6 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-gray-200 shadow-lg">SAVE</button>
+                      <button onClick={() => setIsAddingCategory(false)} className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800"><Minus size={20} /></button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {assetStructure.map(category => (
+                    <div key={category.id} className="space-y-4">
+                      <div className="flex justify-between items-center px-2">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center">
+                          {category.name}
+                          {category.isLiability && <span className="ml-2 px-1.5 py-0.5 bg-red-900/20 text-red-500 text-[8px] rounded">LIABILITY</span>}
+                          {category.isTracking && <span className="ml-2 px-1.5 py-0.5 bg-yellow-900/20 text-yellow-500 text-[8px] rounded">TRACKING ONLY</span>}
+                        </h4>
+                        <div className="flex space-x-2">
+                          <button onClick={() => { setAddingAssetTo(category.id); setNewAssetName(""); }} className={`p-1 ${theme.textHover} text-gray-600 transition-colors`} title="Add Item"><PlusCircle size={14} /></button>
+                          <button onClick={() => removeAssetCategory(category.id)} className="p-1 hover:text-red-500 text-gray-600 transition-colors" title="Delete Category"><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {category.items.map(item => (
+                          <div key={item.id} className="bg-gray-900/40 p-4 rounded-2xl border border-gray-800 flex items-center justify-between group transition-all hover:border-gray-700">
+                            <div className="flex items-center space-x-3 flex-1">
+                              <button onClick={() => removeAssetItem(category.id, item.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"><Trash2 size={14} /></button>
+                              <span className="font-semibold text-sm">{item.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-gray-600 text-xs">$</span>
+                              <input
+                                type="number"
+                                placeholder="0.00"
+                                value={item.value}
+                                className={`bg-transparent border-b border-gray-800 w-32 focus:${theme.border} outline-none text-right font-mono text-white text-sm`}
+                                onChange={(e) => updateAssetValue(category.id, item.id, e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        ))}
+
+                        {addingAssetTo === category.id && (
+                          <div className={`bg-gray-800/60 p-4 rounded-2xl border ${theme.border}/50 flex items-center justify-between animate-in fade-in slide-in-from-top-2`}>
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder="Name..."
+                              className="bg-transparent text-sm text-white placeholder-gray-500 outline-none w-full mr-4"
+                              value={newAssetName}
+                              onChange={e => setNewAssetName(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleSaveNewAsset(category.id)}
+                            />
+                            <div className="flex items-center space-x-2">
+                              <button onClick={() => handleSaveNewAsset(category.id)} className={`${theme.primary} text-white text-[10px] font-bold px-3 py-1.5 rounded-lg ${theme.primaryHover}`}>ADD</button>
+                              <button onClick={() => setAddingAssetTo(null)} className="text-gray-500 hover:text-white"><Minus size={14} /></button>
+                            </div>
+                          </div>
+                        )}
+
+                        {category.items.length === 0 && addingAssetTo !== category.id && (
+                          <button onClick={() => { setAddingAssetTo(category.id); setNewAssetName(""); }} className="w-full py-8 text-center border-2 border-dashed border-gray-800 rounded-2xl text-gray-600 text-xs italic hover:bg-gray-900/30 transition-colors">
+                            + Add New Asset to {category.name}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-12 space-y-4">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-2">Performance History</h3>
+                  <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                          <th className="px-6 py-4 w-32">Date</th>
+                          <th className="px-6 py-4 text-right">Net Worth</th>
+                          <th className="px-6 py-4 text-right">Net Difference</th>
+                          <th className="px-6 py-4 text-right">Monthly Yield</th>
+                          <th className="px-6 py-4">Comments</th>
+                          <th className="px-6 py-4 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/50">
+                        {monthlyHistory.map((h, index) => (
+                          <React.Fragment key={h.sortKey || h.date}>
+                            <tr
+                              className={`hover:bg-gray-800/20 group cursor-pointer transition-colors ${expandedHistoryIndex === index ? 'bg-gray-800/10' : ''}`}
+                              onClick={() => toggleHistoryExpansion(index)}
+                            >
+                              <td className="px-6 py-4 text-sm font-bold text-gray-300 flex items-center gap-2">
+                                {expandedHistoryIndex === index ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />}
+                                {h.date}
+                              </td>
+                              <td className="px-6 py-4 text-right text-sm font-bold text-white font-mono">
+                                ${h.netWorth.toLocaleString()}
+                              </td>
+                              <td className={`px-6 py-4 text-right text-sm font-mono ${h.netDiff > 0 ? 'text-green-400' : h.netDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                {h.netDiff > 0 ? '+' : ''}{h.netDiff.toLocaleString()}
+                              </td>
+                              <td className={`px-6 py-4 text-right text-sm font-mono ${h.yield > 0 ? 'text-green-400' : h.yield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                {h.yield > 0 ? '+' : ''}{h.yield.toFixed(2)}%
+                              </td>
+                              <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                <textarea
+                                  value={h.comment}
+                                  onChange={(e) => updateHistoryComment(h.sortKey || h.date, e.target.value)}
+                                  className="w-full bg-transparent text-sm text-gray-500 italic outline-none resize-y min-h-[40px] border-b border-transparent focus:border-gray-700 transition-colors placeholder-gray-700"
+                                  placeholder="Add notes..."
+                                />
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                              </td>
+                            </tr>
+                            {expandedHistoryIndex === index && (
+                              <tr className="bg-gray-950/30">
+                                <td colSpan={6} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
+                                  {h.snapshot ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pl-6 border-l-2 border-gray-800">
+                                      {h.snapshot.map(cat => (
+                                        <div key={cat.id} className="space-y-3">
+                                          <div className="flex items-center space-x-2">
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{cat.name}</h4>
+                                            {cat.isLiability && <span className="px-1.5 py-0.5 bg-red-900/20 text-red-500 text-[8px] rounded">LIABILITY</span>}
+                                            {cat.isTracking && <span className="px-1.5 py-0.5 bg-yellow-900/20 text-yellow-500 text-[8px] rounded">TRACKING</span>}
+                                          </div>
+                                          <div className="space-y-2">
+                                            {cat.items.map(item => {
+                                              const currentVal = parseFloat(item.value.toString()) || 0;
+                                              const prevSnapshot = monthlyHistory[index + 1]?.snapshot;
+                                              const prevVal = getPreviousItemValue(prevSnapshot, cat.id, item.id);
+                                              const diff = currentVal - prevVal;
+                                              const diffPct = prevVal !== 0 ? (diff / Math.abs(prevVal)) * 100 : 0;
+
+                                              const isGood = cat.isLiability ? diff < 0 : diff > 0;
+                                              const isNeutral = diff === 0;
+                                              const colorClass = isNeutral ? 'text-gray-600' : isGood ? 'text-green-500' : 'text-red-500';
+
+                                              return (
+                                                <div key={item.id} className="flex justify-between items-center text-sm p-2 rounded hover:bg-gray-900/50">
+                                                  <span className="text-gray-300">{item.name}</span>
+                                                  <div className="text-right">
+                                                    <div className="font-mono text-white">${currentVal.toLocaleString()}</div>
+                                                    {!isNeutral && (
+                                                      <div className={`text-[10px] font-bold ${colorClass} flex justify-end space-x-1`}>
+                                                        <span>{diff > 0 ? '+' : ''}{diff.toLocaleString()}</span>
+                                                        <span>({diffPct > 0 ? '+' : ''}{diffPct.toFixed(1)}%)</span>
+                                                      </div>
+                                                    )}
+                                                    {isNeutral && <div className="text-[10px] text-gray-700">-</div>}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center text-gray-600 italic py-4">
+                                      Detailed asset data not available for this record.
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'income' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <h2 className="text-3xl font-bold text-white">Income Manager</h2>
+                    <p className="text-gray-500 mt-1">Track and manage your income streams.</p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button onClick={() => setIsAddingIncome(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold hover:bg-gray-700 text-gray-300">
+                      <PlusCircle size={14} /><span>NEW STREAM</span>
+                    </button>
+                    <button onClick={saveIncomeToHistory} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg`}>
+                      <span>SAVE MONTH TO HISTORY</span>
+                    </button>
+                  </div>
+                </div>
+
+                <IncomePerformanceChart />
+
+                {isAddingIncome && (
+                  <div className="bg-gray-900/80 p-6 rounded-2xl border border-gray-700 flex items-center gap-4 animate-in fade-in slide-in-from-top-4 shadow-2xl">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Stream Name</label>
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="e.g. Freelance, Dividends..."
+                        className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors`}
+                        value={newIncomeName}
+                        onChange={e => setNewIncomeName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleAddIncomeStream()}
+                      />
+                    </div>
+                    <div className="flex items-center space-x-4 pt-2 md:pt-0">
+                      <button onClick={handleAddIncomeStream} className="px-6 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-gray-200 shadow-lg">SAVE</button>
+                      <button onClick={() => setIsAddingIncome(false)} className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800"><Minus size={20} /></button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {incomeStreams.map(stream => (
+                    <div key={stream.id} className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800 group relative hover:border-gray-700 transition-colors">
+                      <div className="flex justify-between items-center mb-4">
+                        <p className="text-gray-300 font-bold text-lg">{stream.name}</p>
+                        <button
+                          onClick={() => removeIncomeStream(stream.id)}
+                          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800/50">
+                          <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Gross (Pre-Tax)</label>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-500 text-sm">$</span>
+                            <input
+                              type="number"
+                              value={stream.grossAmount}
+                              onChange={(e) => setIncomeStreams(prev => prev.map(s => s.id === stream.id ? { ...s, grossAmount: e.target.value } : s))}
+                              className="bg-transparent text-lg font-bold w-full outline-none text-gray-300 font-mono"
                               placeholder="0.00"
-                              value={item.value}
-                              className={`bg-transparent border-b border-gray-800 w-32 focus:${theme.border} outline-none text-right font-mono text-white text-sm`}
-                              onChange={(e) => updateAssetValue(category.id, item.id, e.target.value)}
                             />
                           </div>
                         </div>
-                      ))}
 
-                      {addingAssetTo === category.id && (
-                        <div className={`bg-gray-800/60 p-4 rounded-2xl border ${theme.border}/50 flex items-center justify-between animate-in fade-in slide-in-from-top-2`}>
-                          <input
-                            autoFocus
-                            type="text"
-                            placeholder="Name..."
-                            className="bg-transparent text-sm text-white placeholder-gray-500 outline-none w-full mr-4"
-                            value={newAssetName}
-                            onChange={e => setNewAssetName(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSaveNewAsset(category.id)}
-                          />
+                        <div className="bg-emerald-900/10 p-3 rounded-xl border border-emerald-900/30">
+                          <label className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider mb-1 block">Net (Post-Tax)</label>
                           <div className="flex items-center space-x-2">
-                            <button onClick={() => handleSaveNewAsset(category.id)} className={`${theme.primary} text-white text-[10px] font-bold px-3 py-1.5 rounded-lg ${theme.primaryHover}`}>ADD</button>
-                            <button onClick={() => setAddingAssetTo(null)} className="text-gray-500 hover:text-white"><Minus size={14} /></button>
+                            <span className="text-emerald-600 text-sm">$</span>
+                            <input
+                              type="number"
+                              value={stream.netAmount}
+                              onChange={(e) => setIncomeStreams(prev => prev.map(s => s.id === stream.id ? { ...s, netAmount: e.target.value } : s))}
+                              className="bg-transparent text-xl font-bold w-full outline-none text-emerald-400 font-mono"
+                              placeholder="0.00"
+                            />
                           </div>
                         </div>
-                      )}
-
-                      {category.items.length === 0 && addingAssetTo !== category.id && (
-                        <button onClick={() => { setAddingAssetTo(category.id); setNewAssetName(""); }} className="w-full py-8 text-center border-2 border-dashed border-gray-800 rounded-2xl text-gray-600 text-xs italic hover:bg-gray-900/30 transition-colors">
-                          + Add New Asset to {category.name}
-                        </button>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              <div className="mt-12 space-y-4">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-2">Performance History</h3>
-                <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                        <th className="px-6 py-4 w-32">Date</th>
-                        <th className="px-6 py-4 text-right">Net Worth</th>
-                        <th className="px-6 py-4 text-right">Net Difference</th>
-                        <th className="px-6 py-4 text-right">Monthly Yield</th>
-                        <th className="px-6 py-4">Comments</th>
-                        <th className="px-6 py-4 w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-800/50">
-                      {monthlyHistory.map((h, index) => (
-                        <React.Fragment key={h.sortKey || h.date}>
-                          <tr
-                            className={`hover:bg-gray-800/20 group cursor-pointer transition-colors ${expandedHistoryIndex === index ? 'bg-gray-800/10' : ''}`}
-                            onClick={() => toggleHistoryExpansion(index)}
-                          >
-                            <td className="px-6 py-4 text-sm font-bold text-gray-300 flex items-center gap-2">
-                              {expandedHistoryIndex === index ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />}
-                              {h.date}
-                            </td>
-                            <td className="px-6 py-4 text-right text-sm font-bold text-white font-mono">
-                              ${h.netWorth.toLocaleString()}
-                            </td>
-                            <td className={`px-6 py-4 text-right text-sm font-mono ${h.netDiff > 0 ? 'text-green-400' : h.netDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                              {h.netDiff > 0 ? '+' : ''}{h.netDiff.toLocaleString()}
-                            </td>
-                            <td className={`px-6 py-4 text-right text-sm font-mono ${h.yield > 0 ? 'text-green-400' : h.yield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                              {h.yield > 0 ? '+' : ''}{h.yield.toFixed(2)}%
-                            </td>
-                            <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                              <textarea
-                                value={h.comment}
-                                onChange={(e) => updateHistoryComment(h.sortKey || h.date, e.target.value)}
-                                className="w-full bg-transparent text-sm text-gray-500 italic outline-none resize-y min-h-[40px] border-b border-transparent focus:border-gray-700 transition-colors placeholder-gray-700"
-                                placeholder="Add notes..."
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                            </td>
-                          </tr>
-                          {expandedHistoryIndex === index && (
-                            <tr className="bg-gray-950/30">
-                              <td colSpan={6} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
-                                {h.snapshot ? (
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pl-6 border-l-2 border-gray-800">
-                                    {h.snapshot.map(cat => (
-                                      <div key={cat.id} className="space-y-3">
-                                        <div className="flex items-center space-x-2">
-                                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{cat.name}</h4>
-                                          {cat.isLiability && <span className="px-1.5 py-0.5 bg-red-900/20 text-red-500 text-[8px] rounded">LIABILITY</span>}
-                                          {cat.isTracking && <span className="px-1.5 py-0.5 bg-yellow-900/20 text-yellow-500 text-[8px] rounded">TRACKING</span>}
+                <div className="mt-12 space-y-4">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-2">Income History</h3>
+                  <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                          <th className="px-6 py-4 w-32">Date</th>
+                          <th className="px-6 py-4 text-right">Total Net</th>
+                          <th className="px-6 py-4 text-right">Total Gross</th>
+                          <th className="px-6 py-4">Comments</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/50">
+                        {incomeHistory.map((h, index) => (
+                          <React.Fragment key={h.sortKey || h.date}>
+                            <tr
+                              className={`hover:bg-gray-800/20 group cursor-pointer transition-colors ${expandedIncomeHistoryIndex === index ? 'bg-gray-800/10' : ''}`}
+                              onClick={() => toggleIncomeHistoryExpansion(index)}
+                            >
+                              <td className="px-6 py-4 text-sm font-bold text-gray-300 flex items-center gap-2">
+                                {expandedIncomeHistoryIndex === index ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />}
+                                {h.date}
+                              </td>
+                              <td className="px-6 py-4 text-right text-sm font-mono text-emerald-400 font-bold">
+                                ${h.totalNet.toLocaleString()}
+                              </td>
+                              <td className="px-6 py-4 text-right text-sm font-mono text-gray-400 font-bold">
+                                ${h.totalGross.toLocaleString()}
+                              </td>
+                              <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                <textarea
+                                  value={h.comment}
+                                  onChange={(e) => updateIncomeHistoryComment(h.sortKey || h.date, e.target.value)}
+                                  className="w-full bg-transparent text-sm text-gray-500 italic outline-none resize-y min-h-[40px] border-b border-transparent focus:border-gray-700 transition-colors placeholder-gray-700"
+                                  placeholder="Add notes..."
+                                />
+                              </td>
+                            </tr>
+                            {expandedIncomeHistoryIndex === index && (
+                              <tr className="bg-gray-950/30">
+                                <td colSpan={4} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6 border-l-2 border-gray-800">
+                                    {h.streams.map(s => (
+                                      <div key={s.id} className="bg-gray-900/30 p-4 rounded-xl border border-gray-800/50 space-y-2">
+                                        <div className="flex justify-between items-start mb-2">
+                                          <span className="text-sm font-bold text-white">{s.name}</span>
                                         </div>
-                                        <div className="space-y-2">
-                                          {cat.items.map(item => {
-                                            const currentVal = parseFloat(item.value.toString()) || 0;
-                                            const prevSnapshot = monthlyHistory[index + 1]?.snapshot;
-                                            const prevVal = getPreviousItemValue(prevSnapshot, cat.id, item.id);
-                                            const diff = currentVal - prevVal;
-                                            const diffPct = prevVal !== 0 ? (diff / Math.abs(prevVal)) * 100 : 0;
-
-                                            const isGood = cat.isLiability ? diff < 0 : diff > 0;
-                                            const isNeutral = diff === 0;
-                                            const colorClass = isNeutral ? 'text-gray-600' : isGood ? 'text-green-500' : 'text-red-500';
-
-                                            return (
-                                              <div key={item.id} className="flex justify-between items-center text-sm p-2 rounded hover:bg-gray-900/50">
-                                                <span className="text-gray-300">{item.name}</span>
-                                                <div className="text-right">
-                                                  <div className="font-mono text-white">${currentVal.toLocaleString()}</div>
-                                                  {!isNeutral && (
-                                                    <div className={`text-[10px] font-bold ${colorClass} flex justify-end space-x-1`}>
-                                                      <span>{diff > 0 ? '+' : ''}{diff.toLocaleString()}</span>
-                                                      <span>({diffPct > 0 ? '+' : ''}{diffPct.toFixed(1)}%)</span>
-                                                    </div>
-                                                  )}
-                                                  {isNeutral && <div className="text-[10px] text-gray-700">-</div>}
-                                                </div>
-                                              </div>
-                                            );
-                                          })}
+                                        <div className="flex justify-between text-xs">
+                                          <span className="text-gray-500">Gross:</span>
+                                          <span className="font-mono text-gray-300">${parseFloat(s.grossAmount.toString()).toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                          <span className="text-emerald-700">Net:</span>
+                                          <span className="font-mono text-emerald-500">${parseFloat(s.netAmount.toString()).toLocaleString()}</span>
                                         </div>
                                       </div>
                                     ))}
                                   </div>
-                                ) : (
-                                  <div className="text-center text-gray-600 italic py-4">
-                                    Detailed asset data not available for this record.
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'income' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex justify-between items-end">
-                <div>
-                  <h2 className="text-3xl font-bold text-white">Income Manager</h2>
-                  <p className="text-gray-500 mt-1">Track and manage your income streams.</p>
-                </div>
-                <div className="flex space-x-3">
-                  <button onClick={() => setIsAddingIncome(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold hover:bg-gray-700 text-gray-300">
-                    <PlusCircle size={14} /><span>NEW STREAM</span>
-                  </button>
-                  <button onClick={saveIncomeToHistory} className={`flex items-center space-x-2 px-4 py-2 ${theme.primary} rounded-xl text-xs font-bold ${theme.primaryHover} text-white shadow-lg`}>
-                    <span>SAVE MONTH TO HISTORY</span>
-                  </button>
-                </div>
-              </div>
-
-              <IncomePerformanceChart />
-
-              {isAddingIncome && (
-                <div className="bg-gray-900/80 p-6 rounded-2xl border border-gray-700 flex items-center gap-4 animate-in fade-in slide-in-from-top-4 shadow-2xl">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Stream Name</label>
-                    <input
-                      autoFocus
-                      type="text"
-                      placeholder="e.g. Freelance, Dividends..."
-                      className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors`}
-                      value={newIncomeName}
-                      onChange={e => setNewIncomeName(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleAddIncomeStream()}
-                    />
-                  </div>
-                  <div className="flex items-center space-x-4 pt-2 md:pt-0">
-                    <button onClick={handleAddIncomeStream} className="px-6 py-2 bg-white text-black text-xs font-bold rounded-lg hover:bg-gray-200 shadow-lg">SAVE</button>
-                    <button onClick={() => setIsAddingIncome(false)} className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800"><Minus size={20} /></button>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        {incomeHistory.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No income history saved yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {incomeStreams.map(stream => (
-                  <div key={stream.id} className="bg-gray-900/40 p-6 rounded-3xl border border-gray-800 group relative hover:border-gray-700 transition-colors">
-                    <div className="flex justify-between items-center mb-4">
-                      <p className="text-gray-300 font-bold text-lg">{stream.name}</p>
-                      <button
-                        onClick={() => removeIncomeStream(stream.id)}
-                        className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+            {activeTab === 'mileage' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-3xl font-bold text-white">Driving Log</h2>
+                    <p className="text-gray-500 mt-1">Spreadsheet entry for business mileage.</p>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <input type="file" ref={drivingLogFileInputRef} onChange={handleDrivingLogImport} className="hidden" accept=".csv" />
+                    <button onClick={() => drivingLogFileInputRef.current?.click()} className="flex items-center space-x-2 px-6 py-3 bg-gray-900 border border-gray-800 rounded-2xl text-xs font-bold hover:bg-gray-800 text-gray-300 transition-colors shadow-lg">
+                      <FileUp size={18} /> <span>IMPORT CSV</span>
+                    </button>
+                    <button onClick={handleExportDrivingLog} className="flex items-center space-x-2 px-6 py-3 bg-gray-900 border border-gray-800 rounded-2xl text-xs font-bold hover:bg-gray-800 text-gray-300 transition-colors shadow-lg">
+                      <Download size={18} /> <span>EXPORT CSV</span>
+                    </button>
+                    <button onClick={handleAddDrivingLog} className={`flex items-center space-x-2 px-6 py-3 ${theme.primary} rounded-2xl text-white font-bold shadow-lg hover:opacity-90 transition-opacity`}>
+                      <Plus size={18} /> <span>ADD ENTRY</span>
+                    </button>
 
-                    <div className="space-y-4">
-                      <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800/50">
-                        <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Gross (Pre-Tax)</label>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-gray-500 text-sm">$</span>
-                          <input
-                            type="number"
-                            value={stream.grossAmount}
-                            onChange={(e) => setIncomeStreams(prev => prev.map(s => s.id === stream.id ? { ...s, grossAmount: e.target.value } : s))}
-                            className="bg-transparent text-lg font-bold w-full outline-none text-gray-300 font-mono"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="bg-emerald-900/10 p-3 rounded-xl border border-emerald-900/30">
-                        <label className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider mb-1 block">Net (Post-Tax)</label>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-emerald-600 text-sm">$</span>
-                          <input
-                            type="number"
-                            value={stream.netAmount}
-                            onChange={(e) => setIncomeStreams(prev => prev.map(s => s.id === stream.id ? { ...s, netAmount: e.target.value } : s))}
-                            className="bg-transparent text-xl font-bold w-full outline-none text-emerald-400 font-mono"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
+                    <div className={`bg-gray-900/30 ${theme.text} px-6 py-3 rounded-2xl border ${theme.border}/30`}>
+                      <p className="text-xs font-bold uppercase tracking-widest opacity-70">Tax Deduction (YTD)</p>
+                      <p className="text-2xl font-bold">
+                        ${(totalYearlyMileage * irsMileageRate).toFixed(2)}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
 
-              <div className="mt-12 space-y-4">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest px-2">Income History</h3>
                 <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                        <th className="px-6 py-4 w-32">Date</th>
-                        <th className="px-6 py-4 text-right">Total Net</th>
-                        <th className="px-6 py-4 text-right">Total Gross</th>
-                        <th className="px-6 py-4">Comments</th>
+                        <th className="px-6 py-4 w-40">Date</th>
+                        <th className="px-6 py-4 w-32">Miles</th>
+                        <th className="px-6 py-4 w-64">Destination</th>
+                        <th className="px-6 py-4">Purpose</th>
+                        <th className="px-6 py-4 w-20"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800/50">
-                      {incomeHistory.map((h, index) => (
-                        <React.Fragment key={h.sortKey || h.date}>
-                          <tr
-                            className={`hover:bg-gray-800/20 group cursor-pointer transition-colors ${expandedIncomeHistoryIndex === index ? 'bg-gray-800/10' : ''}`}
-                            onClick={() => toggleIncomeHistoryExpansion(index)}
-                          >
-                            <td className="px-6 py-4 text-sm font-bold text-gray-300 flex items-center gap-2">
-                              {expandedIncomeHistoryIndex === index ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />}
-                              {h.date}
-                            </td>
-                            <td className="px-6 py-4 text-right text-sm font-mono text-emerald-400 font-bold">
-                              ${h.totalNet.toLocaleString()}
-                            </td>
-                            <td className="px-6 py-4 text-right text-sm font-mono text-gray-400 font-bold">
-                              ${h.totalGross.toLocaleString()}
-                            </td>
-                            <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                              <textarea
-                                value={h.comment}
-                                onChange={(e) => updateIncomeHistoryComment(h.sortKey || h.date, e.target.value)}
-                                className="w-full bg-transparent text-sm text-gray-500 italic outline-none resize-y min-h-[40px] border-b border-transparent focus:border-gray-700 transition-colors placeholder-gray-700"
-                                placeholder="Add notes..."
-                              />
-                            </td>
-                          </tr>
-                          {expandedIncomeHistoryIndex === index && (
-                            <tr className="bg-gray-950/30">
-                              <td colSpan={4} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6 border-l-2 border-gray-800">
-                                  {h.streams.map(s => (
-                                    <div key={s.id} className="bg-gray-900/30 p-4 rounded-xl border border-gray-800/50 space-y-2">
-                                      <div className="flex justify-between items-start mb-2">
-                                        <span className="text-sm font-bold text-white">{s.name}</span>
-                                      </div>
-                                      <div className="flex justify-between text-xs">
-                                        <span className="text-gray-500">Gross:</span>
-                                        <span className="font-mono text-gray-300">${parseFloat(s.grossAmount.toString()).toLocaleString()}</span>
-                                      </div>
-                                      <div className="flex justify-between text-xs">
-                                        <span className="text-emerald-700">Net:</span>
-                                        <span className="font-mono text-emerald-500">${parseFloat(s.netAmount.toString()).toLocaleString()}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      ))}
-                      {incomeHistory.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No income history saved yet.</td>
+                      {displayedDrivingLog.map(log => (
+                        <tr key={log.id} className="hover:bg-blue-900/5 group">
+                          <td className="p-0"><input type="date" value={log.date} onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, date: e.target.value } : l))} className="w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 text-white [color-scheme:dark]" /></td>
+                          <td className="p-0"><input type="number" placeholder="0.0" value={log.miles} onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, miles: e.target.value } : l))} className={`w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 font-mono ${theme.text} font-bold`} /></td>
+                          <td className="p-0"><input type="text" placeholder="Location..." value={log.destination} onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, destination: e.target.value } : l))} className="w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 text-white" /></td>
+                          <td className="p-0">
+                            <input
+                              list="driving-purposes-list"
+                              type="text"
+                              placeholder="Reason..."
+                              value={log.purpose}
+                              onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, purpose: e.target.value } : l))}
+                              className="w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 text-white"
+                            />
+                          </td>
+                          <td className="p-0 text-center"><button onClick={() => setDrivingLog(drivingLog.filter(l => l.id !== log.id))} className="text-gray-700 hover:text-red-500"><Trash2 size={14} /></button></td>
                         </tr>
+                      ))}
+                      {displayedDrivingLog.length === 0 && (
+                        <tr><td colSpan={5} className="text-center py-8 text-gray-500 italic">No entries for {currentYear}.</td></tr>
                       )}
                     </tbody>
                   </table>
+                  <datalist id="driving-purposes-list">
+                    {drivingPurposes.map(p => <option key={p} value={p} />)}
+                  </datalist>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === 'mileage' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-3xl font-bold text-white">Driving Log</h2>
-                  <p className="text-gray-500 mt-1">Spreadsheet entry for business mileage.</p>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <input type="file" ref={drivingLogFileInputRef} onChange={handleDrivingLogImport} className="hidden" accept=".csv" />
-                  <button onClick={() => drivingLogFileInputRef.current?.click()} className="flex items-center space-x-2 px-6 py-3 bg-gray-900 border border-gray-800 rounded-2xl text-xs font-bold hover:bg-gray-800 text-gray-300 transition-colors shadow-lg">
-                    <FileUp size={18} /> <span>IMPORT CSV</span>
-                  </button>
-                  <button onClick={handleExportDrivingLog} className="flex items-center space-x-2 px-6 py-3 bg-gray-900 border border-gray-800 rounded-2xl text-xs font-bold hover:bg-gray-800 text-gray-300 transition-colors shadow-lg">
-                    <Download size={18} /> <span>EXPORT CSV</span>
-                  </button>
-                  <button onClick={handleAddDrivingLog} className={`flex items-center space-x-2 px-6 py-3 ${theme.primary} rounded-2xl text-white font-bold shadow-lg hover:opacity-90 transition-opacity`}>
-                    <Plus size={18} /> <span>ADD ENTRY</span>
-                  </button>
+            {activeTab === 'settings' && (
+              <div className="flex h-[calc(100vh-2rem)] animate-in fade-in slide-in-from-bottom-4 duration-500 bg-[#0d0d0d] rounded-3xl border border-gray-800 overflow-hidden">
+                {/* Settings Sidebar */}
+                <div className="w-64 border-r border-gray-800 p-4 space-y-1 bg-gray-900/20">
+                  <h2 className="text-xl font-bold text-white px-4 py-4 mb-2">Settings</h2>
 
-                  <div className={`bg-gray-900/30 ${theme.text} px-6 py-3 rounded-2xl border ${theme.border}/30`}>
-                    <p className="text-xs font-bold uppercase tracking-widest opacity-70">Tax Deduction (YTD)</p>
-                    <p className="text-2xl font-bold">
-                      ${(totalYearlyMileage * irsMileageRate).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                      <th className="px-6 py-4 w-40">Date</th>
-                      <th className="px-6 py-4 w-32">Miles</th>
-                      <th className="px-6 py-4 w-64">Destination</th>
-                      <th className="px-6 py-4">Purpose</th>
-                      <th className="px-6 py-4 w-20"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800/50">
-                    {displayedDrivingLog.map(log => (
-                      <tr key={log.id} className="hover:bg-blue-900/5 group">
-                        <td className="p-0"><input type="date" value={log.date} onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, date: e.target.value } : l))} className="w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 text-white [color-scheme:dark]" /></td>
-                        <td className="p-0"><input type="number" placeholder="0.0" value={log.miles} onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, miles: e.target.value } : l))} className={`w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 font-mono ${theme.text} font-bold`} /></td>
-                        <td className="p-0"><input type="text" placeholder="Location..." value={log.destination} onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, destination: e.target.value } : l))} className="w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 text-white" /></td>
-                        <td className="p-0">
-                          <input
-                            list="driving-purposes-list"
-                            type="text"
-                            placeholder="Reason..."
-                            value={log.purpose}
-                            onChange={(e) => setDrivingLog(prev => prev.map(l => l.id === log.id ? { ...l, purpose: e.target.value } : l))}
-                            className="w-full bg-transparent px-6 py-3 border-none outline-none text-sm h-12 text-white"
-                          />
-                        </td>
-                        <td className="p-0 text-center"><button onClick={() => setDrivingLog(drivingLog.filter(l => l.id !== log.id))} className="text-gray-700 hover:text-red-500"><Trash2 size={14} /></button></td>
-                      </tr>
-                    ))}
-                    {displayedDrivingLog.length === 0 && (
-                      <tr><td colSpan={5} className="text-center py-8 text-gray-500 italic">No entries for {currentYear}.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-                <datalist id="driving-purposes-list">
-                  {drivingPurposes.map(p => <option key={p} value={p} />)}
-                </datalist>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'settings' && (
-            <div className="flex h-[calc(100vh-2rem)] animate-in fade-in slide-in-from-bottom-4 duration-500 bg-[#0d0d0d] rounded-3xl border border-gray-800 overflow-hidden">
-              {/* Settings Sidebar */}
-              <div className="w-64 border-r border-gray-800 p-4 space-y-1 bg-gray-900/20">
-                <h2 className="text-xl font-bold text-white px-4 py-4 mb-2">Settings</h2>
-
-                <button
-                  onClick={() => setSettingsActiveSection('Data Management')}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-all font-medium text-sm flex justify-between items-center mb-4 ${settingsActiveSection === 'Data Management' ? `bg-blue-900/20 text-blue-400 border border-blue-800/50` : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Archive size={16} />
-                    Data Management
-                  </div>
-                  <ChevronRight size={14} />
-                </button>
-
-                {['Appearance', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
                   <button
-                    key={section}
-                    onClick={() => { setSettingsActiveSection(section); setSettingsSubSection(null); }}
-                    className={`w-full text-left px-4 py-3 rounded-xl transition-all font-medium text-sm flex justify-between items-center ${settingsActiveSection === section ? `${theme.primary}/10 ${theme.text}` : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
+                    onClick={() => setSettingsActiveSection('Data Management')}
+                    className={`w-full text-left px-4 py-3 rounded-xl transition-all font-medium text-sm flex justify-between items-center mb-4 ${settingsActiveSection === 'Data Management' ? `bg-blue-900/20 text-blue-400 border border-blue-800/50` : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
                   >
-                    {section}
-                    {settingsActiveSection === section && <ChevronRight size={14} />}
+                    <div className="flex items-center gap-2">
+                      <Archive size={16} />
+                      Data Management
+                    </div>
+                    <ChevronRight size={14} />
                   </button>
-                ))}
-              </div>
 
-              {/* Settings Content Area */}
-              <div className="flex-1 p-8 overflow-y-auto">
+                  {['Appearance', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
+                    <button
+                      key={section}
+                      onClick={() => { setSettingsActiveSection(section); setSettingsSubSection(null); }}
+                      className={`w-full text-left px-4 py-3 rounded-xl transition-all font-medium text-sm flex justify-between items-center ${settingsActiveSection === section ? `${theme.primary}/10 ${theme.text}` : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
+                    >
+                      {section}
+                      {settingsActiveSection === section && <ChevronRight size={14} />}
+                    </button>
+                  ))}
+                </div>
 
-                {/* --- DATA MANAGEMENT --- */}
-                {settingsActiveSection === 'Data Management' && (
-                  <div className="max-w-2xl space-y-8 animate-in slide-in-from-right-4 duration-300">
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Archive size={20} className="text-blue-500" /> Data Exports</h3>
-                      <p className="text-gray-500 text-sm mb-6">Create comprehensive backups of your entire financial profile.</p>
+                {/* Settings Content Area */}
+                <div className="flex-1 p-8 overflow-y-auto">
 
-                      <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="text-white font-bold mb-1">Export All Data</h4>
-                            <p className="text-gray-500 text-sm max-w-sm">Generates a ZIP file containing detailed CSV reports for Spending, Assets, Income, Business, and Mileage.</p>
-                          </div>
-                          <button
-                            onClick={() => setIsExportAllModalOpen(true)}
-                            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg shadow-blue-900/20"
-                          >
-                            <Download size={16} />
-                            <span>EXPORT ALL</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  {/* --- DATA MANAGEMENT --- */}
+                  {settingsActiveSection === 'Data Management' && (
+                    <div className="max-w-2xl space-y-8 animate-in slide-in-from-right-4 duration-300">
+                      <div>
+                        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Archive size={20} className="text-blue-500" /> Data Exports</h3>
+                        <p className="text-gray-500 text-sm mb-6">Create comprehensive backups of your entire financial profile.</p>
 
-                {/* --- APPEARANCE --- */}
-                {settingsActiveSection === 'Appearance' && (
-                  <div className="max-w-2xl space-y-10">
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Palette size={20} className="text-gray-400" /> Color Theme</h3>
-                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
-                        {Object.entries(THEMES).map(([key, t]) => (
-                          <button
-                            key={key}
-                            onClick={() => setCurrentTheme(key as any)}
-                            className={`group relative flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${currentTheme === key ? `bg-gray-800 border-gray-600` : 'border-transparent hover:bg-gray-800/50'}`}
-                          >
-                            <div
-                              className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-transform group-hover:scale-110`}
-                              style={{ backgroundColor: t.hex }}
-                            >
-                              {currentTheme === key && <Check size={20} className="text-white" />}
-                            </div>
-                            <span className={`text-xs font-bold uppercase tracking-wider ${currentTheme === key ? 'text-white' : 'text-gray-500'}`}>{t.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="border-t border-gray-800 pt-10">
-                      <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Eye size={20} className="text-gray-400" /> Sidebar Visibility</h3>
-                      <p className="text-gray-500 text-sm mb-6">Hide tabs you don't use to keep the sidebar clean.</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {SIDEBAR_TABS.filter(t => t.id !== 'settings').map(tab => (
-                          <div key={tab.id} className="flex items-center justify-between bg-gray-900/30 border border-gray-800 rounded-xl p-4">
-                            <div className="flex items-center gap-3">
-                              <tab.icon size={18} className="text-gray-500" />
-                              <span className="text-sm font-bold text-gray-300">{tab.label}</span>
+                        <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="text-white font-bold mb-1">Export All Data</h4>
+                              <p className="text-gray-500 text-sm max-w-sm">Generates a ZIP file containing detailed CSV reports for Spending, Assets, Income, Business, and Mileage.</p>
                             </div>
                             <button
-                              onClick={() => {
-                                setHiddenTabs(prev =>
-                                  prev.includes(tab.id)
-                                    ? prev.filter(id => id !== tab.id)
-                                    : [...prev, tab.id]
-                                );
-                              }}
-                              className={`w-12 h-6 rounded-full transition-all relative ${!hiddenTabs.includes(tab.id) ? theme.primary : 'bg-gray-800'}`}
+                              onClick={() => setIsExportAllModalOpen(true)}
+                              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg shadow-blue-900/20"
                             >
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${!hiddenTabs.includes(tab.id) ? 'right-1' : 'left-1'}`} />
+                              <Download size={16} />
+                              <span>EXPORT ALL</span>
                             </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="border-t border-gray-800 pt-10">
-                      <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Type size={20} className="text-gray-400" /> Application Font Size</h3>
-                      <div className="flex bg-gray-900 p-1 rounded-xl w-max">
-                        {[
-                          { id: 'sm', label: 'Small' },
-                          { id: 'base', label: 'Default' },
-                          { id: 'lg', label: 'Large' }
-                        ].map(size => (
-                          <button
-                            key={size.id}
-                            onClick={() => setAppFontSize(size.id as any)}
-                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${appFontSize === size.id ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-                          >
-                            {size.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* --- SPENDING LEDGER --- */}
-                {settingsActiveSection === 'Spending Ledger' && !settingsSubSection && (
-                  <div className="max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-300">
-                    <h3 className="text-lg font-bold text-white mb-2">Configuration</h3>
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={() => setSettingsSubSection('categories')}
-                    >
-                      <div>
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Receipt size={18} /> Expense Categories</h4>
-                        <p className="text-sm text-gray-500 mt-1">{categories.length} categories defined</p>
-                      </div>
-                      <ChevronRight className="text-gray-600 group-hover:text-white" />
-                    </div>
-
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={() => setSettingsSubSection('methods')}
-                    >
-                      <div>
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Wallet size={18} /> Payment Methods</h4>
-                        <p className="text-sm text-gray-500 mt-1">{paymentMethods.length} methods defined</p>
-                      </div>
-                      <ChevronRight className="text-gray-600 group-hover:text-white" />
-                    </div>
-
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={() => setSettingsSubSection('colors')}
-                    >
-                      <div>
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Palette size={18} /> Category Colors</h4>
-                        <p className="text-sm text-gray-500 mt-1">Customize pie chart colors</p>
-                      </div>
-                      <ChevronRight className="text-gray-600 group-hover:text-white" />
-                    </div>
-                  </div>
-                )}
-
-                {/* --- ASSET WATCH --- */}
-                {settingsActiveSection === 'Asset Watch' && !settingsSubSection && (
-                  <div className="max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-300">
-                    <h3 className="text-lg font-bold text-white mb-2">Configuration</h3>
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={() => setSettingsSubSection('colors')}
-                    >
-                      <div>
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Palette size={18} /> Category Colors</h4>
-                        <p className="text-sm text-gray-500 mt-1">Customize pie chart colors</p>
-                      </div>
-                      <ChevronRight className="text-gray-600 group-hover:text-white" />
-                    </div>
-                  </div>
-                )}
-
-                {/* --- BUSINESS CENTER SETTINGS --- */}
-                {settingsActiveSection === 'Business Center' && !settingsSubSection && (
-                  <div className="max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-300">
-                    <h3 className="text-lg font-bold text-white mb-2">Configuration</h3>
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={() => setSettingsSubSection('categories')}
-                    >
-                      <div>
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Briefcase size={18} /> Business Categories</h4>
-                        <p className="text-sm text-gray-500 mt-1">{businessCategories.length} categories defined</p>
-                      </div>
-                      <ChevronRight className="text-gray-600 group-hover:text-white" />
-                    </div>
-
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={() => setSettingsSubSection('methods')}
-                    >
-                      <div>
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Wallet size={18} /> Payment Methods</h4>
-                        <p className="text-sm text-gray-500 mt-1">{businessPaymentMethods.length} methods defined</p>
-                      </div>
-                      <ChevronRight className="text-gray-600 group-hover:text-white" />
-                    </div>
-                  </div>
-                )}
-
-                {/* --- SUBSECTIONS: EDITORS --- */}
-                {settingsSubSection && (
-                  <div className="animate-in slide-in-from-right-8 duration-300 max-w-3xl">
-                    <button
-                      onClick={() => setSettingsSubSection(null)}
-                      className="flex items-center space-x-2 text-gray-500 hover:text-white mb-6 transition-colors text-sm font-bold uppercase tracking-wider"
-                    >
-                      <ChevronLeft size={16} />
-                      <span>Back to {settingsSubSection === 'purposes' ? 'Driving Settings' : 'Settings'}</span>
-                    </button>
-
-                    <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
-                      <div className="bg-gray-900/50 p-6 border-b border-gray-800 flex justify-between items-center">
-                        <h3 className="text-xl font-bold text-white">
-                          {settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? 'Business Categories' : 'Expense Categories') :
-                            settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? 'Business Payment Methods' : 'Payment Methods') :
-                              settingsSubSection === 'colors' ? 'Category Colors' :
-                                'Trip Purposes'}
-                        </h3>
-                        {settingsSubSection !== 'colors' && (
-                          <button
-                            onClick={() => {
-                              setIsAddingSettingsItem(true);
-                              setNewSettingsItemName("");
-                            }}
-                            className={`${theme.primary} ${theme.primaryHover} text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2`}
-                          >
-                            <Plus size={14} /> ADD NEW
-                          </button>
-                        )}
-                      </div>
-                      <div className="divide-y divide-gray-800 max-h-[60vh] overflow-y-auto">
-                        {settingsSubSection === 'colors' && (
-                          <div className="p-6 space-y-6">
-                            {(
-                              settingsActiveSection === 'Asset Watch' ? assetAllocationData.map(d => d.name) :
-                                settingsActiveSection === 'Business Center' ? businessCategories :
-                                  categories
-                            ).map((catName, i) => (
-                              <div key={catName} className="flex flex-col gap-3 group bg-gray-900/20 p-4 rounded-xl border border-gray-800/50 hover:border-gray-700 transition-all">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div
-                                      className="w-4 h-4 rounded-full shadow-[0_0_10px_currentColor]"
-                                      style={{
-                                        backgroundColor: customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length],
-                                        color: customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length]
-                                      }}
-                                    />
-                                    <span className="text-sm font-bold text-gray-200">{catName}</span>
-                                  </div>
-                                  {customColors[catName] && (
-                                    <button
-                                      onClick={() => {
-                                        const newColors = { ...customColors };
-                                        delete newColors[catName];
-                                        setCustomColors(newColors);
-                                      }}
-                                      className="text-[10px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors"
-                                    >
-                                      Reset
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {NEON_PALETTE.map(color => (
-                                    <button
-                                      key={color}
-                                      onClick={() => setCustomColors(prev => ({ ...prev, [catName]: color }))}
-                                      className={`w-7 h-7 rounded-lg border-2 transition-all ${(customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length]) === color
-                                        ? 'border-white scale-110 shadow-[0_0_12px_currentColor]'
-                                        : 'border-transparent hover:scale-105 hover:border-gray-600'
-                                        }`}
-                                      style={{ backgroundColor: color, color: color }}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {isAddingSettingsItem && (
-                          <div className="p-4 bg-gray-900/50 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <input
-                              autoFocus
-                              type="text"
-                              placeholder={
-                                settingsSubSection === 'categories' ? "New category name..." :
-                                  settingsSubSection === 'methods' ? "New payment method..." :
-                                    "New driving purpose..."
-                              }
-                              className={`flex-1 bg-gray-950 border ${theme.border} text-white text-sm rounded-lg px-3 py-2 outline-none`}
-                              value={newSettingsItemName}
-                              onChange={(e) => setNewSettingsItemName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleAddSettingsItem();
-                                if (e.key === 'Escape') setIsAddingSettingsItem(false);
-                              }}
-                            />
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={handleAddSettingsItem}
-                                className="px-4 py-2 bg-white text-black text-[10px] font-bold rounded-lg hover:bg-gray-200"
-                              >
-                                SAVE
-                              </button>
-                              <button
-                                onClick={() => setIsAddingSettingsItem(false)}
-                                className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800"
-                              >
-                                <Minus size={18} />
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                        {['categories', 'methods', 'purposes'].includes(settingsSubSection) && (
-                          settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? businessCategories : categories) :
-                            settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? businessPaymentMethods : paymentMethods) :
-                              drivingPurposes
-                        ).map((item) => (
-                          <div key={item} className="p-4 flex items-center justify-between hover:bg-gray-900/30 group">
-                            {editingItemOriginalName === item ? (
-                              <div className="flex-1 flex items-center gap-3 mr-4">
-                                <input
-                                  autoFocus
-                                  type="text"
-                                  className={`bg-gray-900 border ${theme.border} text-white text-sm rounded-lg px-3 py-2 w-full outline-none`}
-                                  value={editingItemNewName}
-                                  onChange={(e) => setEditingItemNewName(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      if (settingsSubSection === 'categories') {
-                                        if (settingsActiveSection === 'Business Center') handleUpdateBusinessCategory();
-                                        else handleUpdateCategory();
-                                      }
-                                      else if (settingsSubSection === 'methods') {
-                                        if (settingsActiveSection === 'Business Center') handleUpdateBusinessPaymentMethod();
-                                        else handleUpdatePaymentMethod();
-                                      }
-                                      else handleUpdateDrivingPurpose();
-                                    }
-                                  }}
-                                />
-                                <button
-                                  onClick={
-                                    settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? handleUpdateBusinessCategory : handleUpdateCategory) :
-                                      settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? handleUpdateBusinessPaymentMethod : handleUpdatePaymentMethod) :
-                                        handleUpdateDrivingPurpose
-                                  }
-                                  className="text-green-500 hover:text-green-400"
-                                >
-                                  <Save size={18} />
-                                </button>
-                                <button onClick={() => { setEditingItemOriginalName(null); setEditingItemNewName(""); }} className="text-gray-500 hover:text-white"><X size={18} /></button>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-300 font-medium pl-2">{item}</span>
-                            )}
-
-                            {editingItemOriginalName !== item && (
-                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => { setEditingItemOriginalName(item); setEditingItemNewName(item); }}
-                                  className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg"
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (confirm(`Delete "${item}"?`)) {
-                                      if (settingsSubSection === 'categories') {
-                                        if (settingsActiveSection === 'Business Center') setBusinessCategories(prev => prev.filter(c => c !== item));
-                                        else setCategories(prev => prev.filter(c => c !== item));
-                                      }
-                                      else if (settingsSubSection === 'methods') {
-                                        if (settingsActiveSection === 'Business Center') setBusinessPaymentMethods(prev => prev.filter(m => m !== item));
-                                        else setPaymentMethods(prev => prev.filter(m => m !== item));
-                                      }
-                                      else setDrivingPurposes(prev => prev.filter(p => p !== item));
-                                    }
-                                  }}
-                                  className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-900/20 rounded-lg"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* --- OTHER SECTIONS PLACEHOLDERS --- */}
-                {['Income Manager'].includes(settingsActiveSection) && (
-                  <div className="flex flex-col items-center justify-center h-64 text-center opacity-50 animate-in fade-in zoom-in-95 duration-500">
-                    <Settings size={48} className="mb-4 text-gray-600" />
-                    <h3 className="text-xl font-bold text-white">Coming Soon</h3>
-                    <p className="text-gray-500 mt-2 max-w-xs">Specific settings for {settingsActiveSection} will be available in a future update.</p>
-                  </div>
-                )}
-
-                {settingsActiveSection === 'Driving Log' && !settingsSubSection && (
-                  <div className="max-w-xl animate-in slide-in-from-right-4 duration-300 space-y-8">
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-6">Configuration</h3>
-                      <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-6">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">IRS Standard Rate ($/mile)</label>
-                        <div className="flex items-center gap-4">
-                          <div className="relative flex-1">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                            <input
-                              type="number"
-                              step="0.001"
-                              value={irsMileageRate}
-                              onChange={(e) => setIrsMileageRate(parseFloat(e.target.value) || 0)}
-                              className={`w-full bg-gray-900 border border-gray-700 rounded-xl py-3 pl-8 pr-4 text-white font-mono focus:${theme.border} outline-none transition-colors`}
-                            />
-                          </div>
-                          <div className="text-xs text-gray-500 max-w-[150px]">
-                            Update annually based on IRS publications.
                           </div>
                         </div>
                       </div>
                     </div>
+                  )}
 
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={() => setSettingsSubSection('purposes')}
-                    >
+                  {/* --- APPEARANCE --- */}
+                  {settingsActiveSection === 'Appearance' && (
+                    <div className="max-w-2xl space-y-10">
                       <div>
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Car size={18} /> Trip Purposes</h4>
-                        <p className="text-sm text-gray-500 mt-1">{drivingPurposes.length} standard purposes defined</p>
+                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Palette size={20} className="text-gray-400" /> Color Theme</h3>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+                          {Object.entries(THEMES).map(([key, t]) => (
+                            <button
+                              key={key}
+                              onClick={() => setCurrentTheme(key as any)}
+                              className={`group relative flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all ${currentTheme === key ? `bg-gray-800 border-gray-600` : 'border-transparent hover:bg-gray-800/50'}`}
+                            >
+                              <div
+                                className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-transform group-hover:scale-110`}
+                                style={{ backgroundColor: t.hex }}
+                              >
+                                {currentTheme === key && <Check size={20} className="text-white" />}
+                              </div>
+                              <span className={`text-xs font-bold uppercase tracking-wider ${currentTheme === key ? 'text-white' : 'text-gray-500'}`}>{t.name}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <ChevronRight className="text-gray-600 group-hover:text-white" />
+
+                      <div className="border-t border-gray-800 pt-10">
+                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Eye size={20} className="text-gray-400" /> Sidebar Visibility</h3>
+                        <p className="text-gray-500 text-sm mb-6">Hide tabs you don't use to keep the sidebar clean.</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {SIDEBAR_TABS.filter(t => t.id !== 'settings').map(tab => (
+                            <div key={tab.id} className="flex items-center justify-between bg-gray-900/30 border border-gray-800 rounded-xl p-4">
+                              <div className="flex items-center gap-3">
+                                <tab.icon size={18} className="text-gray-500" />
+                                <span className="text-sm font-bold text-gray-300">{tab.label}</span>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setHiddenTabs(prev =>
+                                    prev.includes(tab.id)
+                                      ? prev.filter(id => id !== tab.id)
+                                      : [...prev, tab.id]
+                                  );
+                                }}
+                                className={`w-12 h-6 rounded-full transition-all relative ${!hiddenTabs.includes(tab.id) ? theme.primary : 'bg-gray-800'}`}
+                              >
+                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${!hiddenTabs.includes(tab.id) ? 'right-1' : 'left-1'}`} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-800 pt-10">
+                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Type size={20} className="text-gray-400" /> Application Font Size</h3>
+                        <div className="flex bg-gray-900 p-1 rounded-xl w-max">
+                          {[
+                            { id: 'sm', label: 'Small' },
+                            { id: 'base', label: 'Default' },
+                            { id: 'lg', label: 'Large' }
+                          ].map(size => (
+                            <button
+                              key={size.id}
+                              onClick={() => setAppFontSize(size.id as any)}
+                              className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${appFontSize === size.id ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                            >
+                              {size.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-              </div>
-            </div>
-          )}
-        </div>
+                  {/* --- SPENDING LEDGER --- */}
+                  {settingsActiveSection === 'Spending Ledger' && !settingsSubSection && (
+                    <div className="max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-300">
+                      <h3 className="text-lg font-bold text-white mb-2">Configuration</h3>
+                      <div
+                        className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                        onClick={() => setSettingsSubSection('categories')}
+                      >
+                        <div>
+                          <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Receipt size={18} /> Expense Categories</h4>
+                          <p className="text-sm text-gray-500 mt-1">{categories.length} categories defined</p>
+                        </div>
+                        <ChevronRight className="text-gray-600 group-hover:text-white" />
+                      </div>
 
-        {/* Global Export Modal */}
-        {isExportAllModalOpen && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
-              <div>
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Archive size={20} className="text-blue-500" /> Export All Data
-                </h3>
-                <p className="text-gray-500 text-sm mt-1">
-                  Download a ZIP file containing individual CSV reports for Spending, Assets, Income, Business, and Mileage.
-                </p>
-              </div>
+                      <div
+                        className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                        onClick={() => setSettingsSubSection('methods')}
+                      >
+                        <div>
+                          <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Wallet size={18} /> Payment Methods</h4>
+                          <p className="text-sm text-gray-500 mt-1">{paymentMethods.length} methods defined</p>
+                        </div>
+                        <ChevronRight className="text-gray-600 group-hover:text-white" />
+                      </div>
 
-              <div className="space-y-3">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Select Date Range</label>
-                {[
-                  { id: 'lastMonth', label: 'Last Month' },
-                  { id: 'last3Months', label: 'Last 3 Months' },
-                  { id: 'last6Months', label: 'Last 6 Months' },
-                  { id: 'ytd', label: 'Year To Date (YTD)' },
-                  { id: 'last2Years', label: 'Last 2 Years' },
-                  { id: 'allTime', label: 'All Time' },
-                ].map(opt => (
-                  <label key={opt.id} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${exportAllRange === opt.id ? `bg-blue-900/20 border-blue-500 text-white` : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-                    <input
-                      type="radio"
-                      name="exportAllRange"
-                      value={opt.id}
-                      checked={exportAllRange === opt.id}
-                      onChange={(e) => setExportAllRange(e.target.value)}
-                      className="hidden"
-                    />
-                    <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${exportAllRange === opt.id ? 'border-blue-500' : 'border-gray-600'}`}>
-                      {exportAllRange === opt.id && <div className={`w-2 h-2 bg-blue-500 rounded-full`} />}
+                      <div
+                        className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                        onClick={() => setSettingsSubSection('colors')}
+                      >
+                        <div>
+                          <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Palette size={18} /> Category Colors</h4>
+                          <p className="text-sm text-gray-500 mt-1">Customize pie chart colors</p>
+                        </div>
+                        <ChevronRight className="text-gray-600 group-hover:text-white" />
+                      </div>
                     </div>
-                    <span className="text-sm font-medium">{opt.label}</span>
-                  </label>
-                ))}
-              </div>
+                  )}
 
-              <div className="flex space-x-3 pt-2">
-                <button onClick={handleExportAll} className={`flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg`}>
-                  GENERATE ZIP
-                </button>
-                <button onClick={() => setIsExportAllModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
-                  CANCEL
-                </button>
+                  {/* --- ASSET WATCH --- */}
+                  {settingsActiveSection === 'Asset Watch' && !settingsSubSection && (
+                    <div className="max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-300">
+                      <h3 className="text-lg font-bold text-white mb-2">Configuration</h3>
+                      <div
+                        className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                        onClick={() => setSettingsSubSection('colors')}
+                      >
+                        <div>
+                          <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Palette size={18} /> Category Colors</h4>
+                          <p className="text-sm text-gray-500 mt-1">Customize pie chart colors</p>
+                        </div>
+                        <ChevronRight className="text-gray-600 group-hover:text-white" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* --- BUSINESS CENTER SETTINGS --- */}
+                  {settingsActiveSection === 'Business Center' && !settingsSubSection && (
+                    <div className="max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-300">
+                      <h3 className="text-lg font-bold text-white mb-2">Configuration</h3>
+                      <div
+                        className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                        onClick={() => setSettingsSubSection('categories')}
+                      >
+                        <div>
+                          <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Briefcase size={18} /> Business Categories</h4>
+                          <p className="text-sm text-gray-500 mt-1">{businessCategories.length} categories defined</p>
+                        </div>
+                        <ChevronRight className="text-gray-600 group-hover:text-white" />
+                      </div>
+
+                      <div
+                        className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                        onClick={() => setSettingsSubSection('methods')}
+                      >
+                        <div>
+                          <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Wallet size={18} /> Payment Methods</h4>
+                          <p className="text-sm text-gray-500 mt-1">{businessPaymentMethods.length} methods defined</p>
+                        </div>
+                        <ChevronRight className="text-gray-600 group-hover:text-white" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* --- SUBSECTIONS: EDITORS --- */}
+                  {settingsSubSection && (
+                    <div className="animate-in slide-in-from-right-8 duration-300 max-w-3xl">
+                      <button
+                        onClick={() => setSettingsSubSection(null)}
+                        className="flex items-center space-x-2 text-gray-500 hover:text-white mb-6 transition-colors text-sm font-bold uppercase tracking-wider"
+                      >
+                        <ChevronLeft size={16} />
+                        <span>Back to {settingsSubSection === 'purposes' ? 'Driving Settings' : 'Settings'}</span>
+                      </button>
+
+                      <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
+                        <div className="bg-gray-900/50 p-6 border-b border-gray-800 flex justify-between items-center">
+                          <h3 className="text-xl font-bold text-white">
+                            {settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? 'Business Categories' : 'Expense Categories') :
+                              settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? 'Business Payment Methods' : 'Payment Methods') :
+                                settingsSubSection === 'colors' ? 'Category Colors' :
+                                  'Trip Purposes'}
+                          </h3>
+                          {settingsSubSection !== 'colors' && (
+                            <button
+                              onClick={() => {
+                                setIsAddingSettingsItem(true);
+                                setNewSettingsItemName("");
+                              }}
+                              className={`${theme.primary} ${theme.primaryHover} text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2`}
+                            >
+                              <Plus size={14} /> ADD NEW
+                            </button>
+                          )}
+                        </div>
+                        <div className="divide-y divide-gray-800 max-h-[60vh] overflow-y-auto">
+                          {settingsSubSection === 'colors' && (
+                            <div className="p-6 space-y-6">
+                              {(
+                                settingsActiveSection === 'Asset Watch' ? assetAllocationData.map(d => d.name) :
+                                  settingsActiveSection === 'Business Center' ? businessCategories :
+                                    categories
+                              ).map((catName, i) => (
+                                <div key={catName} className="flex flex-col gap-3 group bg-gray-900/20 p-4 rounded-xl border border-gray-800/50 hover:border-gray-700 transition-all">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="w-4 h-4 rounded-full shadow-[0_0_10px_currentColor]"
+                                        style={{
+                                          backgroundColor: customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length],
+                                          color: customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length]
+                                        }}
+                                      />
+                                      <span className="text-sm font-bold text-gray-200">{catName}</span>
+                                    </div>
+                                    {customColors[catName] && (
+                                      <button
+                                        onClick={() => {
+                                          const newColors = { ...customColors };
+                                          delete newColors[catName];
+                                          setCustomColors(newColors);
+                                        }}
+                                        className="text-[10px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors"
+                                      >
+                                        Reset
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {NEON_PALETTE.map(color => (
+                                      <button
+                                        key={color}
+                                        onClick={() => setCustomColors(prev => ({ ...prev, [catName]: color }))}
+                                        className={`w-7 h-7 rounded-lg border-2 transition-all ${(customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length]) === color
+                                          ? 'border-white scale-110 shadow-[0_0_12px_currentColor]'
+                                          : 'border-transparent hover:scale-105 hover:border-gray-600'
+                                          }`}
+                                        style={{ backgroundColor: color, color: color }}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {isAddingSettingsItem && (
+                            <div className="p-4 bg-gray-900/50 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                              <input
+                                autoFocus
+                                type="text"
+                                placeholder={
+                                  settingsSubSection === 'categories' ? "New category name..." :
+                                    settingsSubSection === 'methods' ? "New payment method..." :
+                                      "New driving purpose..."
+                                }
+                                className={`flex-1 bg-gray-950 border ${theme.border} text-white text-sm rounded-lg px-3 py-2 outline-none`}
+                                value={newSettingsItemName}
+                                onChange={(e) => setNewSettingsItemName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleAddSettingsItem();
+                                  if (e.key === 'Escape') setIsAddingSettingsItem(false);
+                                }}
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={handleAddSettingsItem}
+                                  className="px-4 py-2 bg-white text-black text-[10px] font-bold rounded-lg hover:bg-gray-200"
+                                >
+                                  SAVE
+                                </button>
+                                <button
+                                  onClick={() => setIsAddingSettingsItem(false)}
+                                  className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800"
+                                >
+                                  <Minus size={18} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {['categories', 'methods', 'purposes'].includes(settingsSubSection) && (
+                            settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? businessCategories : categories) :
+                              settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? businessPaymentMethods : paymentMethods) :
+                                drivingPurposes
+                          ).map((item) => (
+                            <div key={item} className="p-4 flex items-center justify-between hover:bg-gray-900/30 group">
+                              {editingItemOriginalName === item ? (
+                                <div className="flex-1 flex items-center gap-3 mr-4">
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    className={`bg-gray-900 border ${theme.border} text-white text-sm rounded-lg px-3 py-2 w-full outline-none`}
+                                    value={editingItemNewName}
+                                    onChange={(e) => setEditingItemNewName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        if (settingsSubSection === 'categories') {
+                                          if (settingsActiveSection === 'Business Center') handleUpdateBusinessCategory();
+                                          else handleUpdateCategory();
+                                        }
+                                        else if (settingsSubSection === 'methods') {
+                                          if (settingsActiveSection === 'Business Center') handleUpdateBusinessPaymentMethod();
+                                          else handleUpdatePaymentMethod();
+                                        }
+                                        else handleUpdateDrivingPurpose();
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={
+                                      settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? handleUpdateBusinessCategory : handleUpdateCategory) :
+                                        settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? handleUpdateBusinessPaymentMethod : handleUpdatePaymentMethod) :
+                                          handleUpdateDrivingPurpose
+                                    }
+                                    className="text-green-500 hover:text-green-400"
+                                  >
+                                    <Save size={18} />
+                                  </button>
+                                  <button onClick={() => { setEditingItemOriginalName(null); setEditingItemNewName(""); }} className="text-gray-500 hover:text-white"><X size={18} /></button>
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-300 font-medium pl-2">{item}</span>
+                              )}
+
+                              {editingItemOriginalName !== item && (
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => { setEditingItemOriginalName(item); setEditingItemNewName(item); }}
+                                    className="p-2 text-gray-500 hover:text-white hover:bg-gray-800 rounded-lg"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Delete "${item}"?`)) {
+                                        if (settingsSubSection === 'categories') {
+                                          if (settingsActiveSection === 'Business Center') setBusinessCategories(prev => prev.filter(c => c !== item));
+                                          else setCategories(prev => prev.filter(c => c !== item));
+                                        }
+                                        else if (settingsSubSection === 'methods') {
+                                          if (settingsActiveSection === 'Business Center') setBusinessPaymentMethods(prev => prev.filter(m => m !== item));
+                                          else setPaymentMethods(prev => prev.filter(m => m !== item));
+                                        }
+                                        else setDrivingPurposes(prev => prev.filter(p => p !== item));
+                                      }
+                                    }}
+                                    className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-900/20 rounded-lg"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* --- OTHER SECTIONS PLACEHOLDERS --- */}
+                  {['Income Manager'].includes(settingsActiveSection) && (
+                    <div className="flex flex-col items-center justify-center h-64 text-center opacity-50 animate-in fade-in zoom-in-95 duration-500">
+                      <Settings size={48} className="mb-4 text-gray-600" />
+                      <h3 className="text-xl font-bold text-white">Coming Soon</h3>
+                      <p className="text-gray-500 mt-2 max-w-xs">Specific settings for {settingsActiveSection} will be available in a future update.</p>
+                    </div>
+                  )}
+
+                  {settingsActiveSection === 'Driving Log' && !settingsSubSection && (
+                    <div className="max-w-xl animate-in slide-in-from-right-4 duration-300 space-y-8">
+                      <div>
+                        <h3 className="text-lg font-bold text-white mb-6">Configuration</h3>
+                        <div className="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-6">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">IRS Standard Rate ($/mile)</label>
+                          <div className="flex items-center gap-4">
+                            <div className="relative flex-1">
+                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                              <input
+                                type="number"
+                                step="0.001"
+                                value={irsMileageRate}
+                                onChange={(e) => setIrsMileageRate(parseFloat(e.target.value) || 0)}
+                                className={`w-full bg-gray-900 border border-gray-700 rounded-xl py-3 pl-8 pr-4 text-white font-mono focus:${theme.border} outline-none transition-colors`}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-500 max-w-[150px]">
+                              Update annually based on IRS publications.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                        onClick={() => setSettingsSubSection('purposes')}
+                      >
+                        <div>
+                          <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Car size={18} /> Trip Purposes</h4>
+                          <p className="text-sm text-gray-500 mt-1">{drivingPurposes.length} standard purposes defined</p>
+                        </div>
+                        <ChevronRight className="text-gray-600 group-hover:text-white" />
+                      </div>
+                    </div>
+                  )}
+
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        )}
 
-        {/* Toast Notification */}
-        {toast && toast.show && (
+          {/* Global Export Modal */}
+          {
+            isExportAllModalOpen && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Archive size={20} className="text-blue-500" /> Export All Data
+                    </h3>
+                    <p className="text-gray-500 text-sm mt-1">
+                      Download a ZIP file containing individual CSV reports for Spending, Assets, Income, Business, and Mileage.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Select Date Range</label>
+                    {[
+                      { id: 'lastMonth', label: 'Last Month' },
+                      { id: 'last3Months', label: 'Last 3 Months' },
+                      { id: 'last6Months', label: 'Last 6 Months' },
+                      { id: 'ytd', label: 'Year To Date (YTD)' },
+                      { id: 'last2Years', label: 'Last 2 Years' },
+                      { id: 'allTime', label: 'All Time' },
+                    ].map(opt => (
+                      <label key={opt.id} className={`flex items-center p-3 rounded-xl border cursor-pointer transition-all ${exportAllRange === opt.id ? `bg-blue-900/20 border-blue-500 text-white` : 'bg-gray-900/50 border-gray-800 text-gray-400 hover:border-gray-700'}`}>
+                        <input
+                          type="radio"
+                          name="exportAllRange"
+                          value={opt.id}
+                          checked={exportAllRange === opt.id}
+                          onChange={(e) => setExportAllRange(e.target.value)}
+                          className="hidden"
+                        />
+                        <div className={`w-4 h-4 rounded-full border mr-3 flex items-center justify-center ${exportAllRange === opt.id ? 'border-blue-500' : 'border-gray-600'}`}>
+                          {exportAllRange === opt.id && <div className={`w-2 h-2 bg-blue-500 rounded-full`} />}
+                        </div>
+                        <span className="text-sm font-medium">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="flex space-x-3 pt-2">
+                    <button onClick={handleExportAll} className={`flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg`}>
+                      GENERATE ZIP
+                    </button>
+                    <button onClick={() => setIsExportAllModalOpen(false)} className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors">
+                      CANCEL
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+        </main >
+      </div>
+
+      {/* Toast Notification */}
+      {
+        toast && toast.show && (
           <div className="fixed bottom-8 right-8 bg-[#0d0d0d] border border-gray-700 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 animate-in slide-in-from-bottom-4 fade-in duration-300 z-50">
             <div className={`w-10 h-10 rounded-full ${theme.primary} flex items-center justify-center`}>
               <Check size={20} className="text-white" />
@@ -5081,10 +5129,9 @@ const App: React.FC = () => {
             </div>
             <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
           </div>
-        )}
-
-      </main>
-    </div >
+        )
+      }
+    </>
   );
 };
 
