@@ -4771,7 +4771,11 @@ const App: React.FC = () => {
                       <div className="divide-y divide-gray-800 max-h-[60vh] overflow-y-auto">
                         {settingsSubSection === 'colors' && (
                           <div className="p-6 space-y-6">
-                            {(settingsActiveSection === 'Asset Watch' ? assetAllocationData.map(d => d.name) : categories).map((catName, i) => (
+                            {(
+                              settingsActiveSection === 'Asset Watch' ? assetAllocationData.map(d => d.name) :
+                                settingsActiveSection === 'Business Center' ? businessCategories :
+                                  categories
+                            ).map((catName, i) => (
                               <div key={catName} className="flex flex-col gap-3 group bg-gray-900/20 p-4 rounded-xl border border-gray-800/50 hover:border-gray-700 transition-all">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
@@ -4848,7 +4852,7 @@ const App: React.FC = () => {
                             </div>
                           </div>
                         )}
-                        {(
+                        {['categories', 'methods', 'purposes'].includes(settingsSubSection) && (
                           settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? businessCategories : categories) :
                             settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? businessPaymentMethods : paymentMethods) :
                               drivingPurposes
