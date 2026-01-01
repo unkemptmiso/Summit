@@ -3411,7 +3411,22 @@ const App: React.FC = () => {
                     }
 
                     if (widgetId === 'business-pl') {
-                      // Calculate business P&L metrics
+                      // Calculate business income
+                      const currentMonthBusinessIncome = (() => {
+                        const sortKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}`;
+                        const historyEntry = incomeHistory.find(h => h.sortKey === sortKey);
+                        if (historyEntry) return historyEntry.totalNet;
+                        return incomeStreams.reduce((acc, s) => acc + (parseFloat(s.netAmount.toString()) || 0), 0);
+                      })();
+
+                      const ytdBusinessIncome = incomeHistory
+                        .filter(h => {
+                          const [y] = h.sortKey.split('-');
+                          return parseInt(y) === currentYear;
+                        })
+                        .reduce((sum, h) => sum + h.totalNet, 0);
+
+                      // Calculate business expenses
                       const currentMonthExpenses = currentMonthBusinessData.reduce((sum, t) => sum + (parseFloat(t.amount.toString()) || 0), 0);
 
                       const ytdBusinessExpenses = businessTransactions.filter(t => {
@@ -3419,14 +3434,9 @@ const App: React.FC = () => {
                         return d.getFullYear() === currentYear && (parseFloat(t.amount.toString()) || 0) > 0;
                       }).reduce((sum, t) => sum + (parseFloat(t.amount.toString()) || 0), 0);
 
-                      const last12MonthsExpenses = businessTransactions.filter(t => {
-                        const d = new Date(t.date + 'T00:00:00');
-                        const now = new Date(currentYear, currentMonth, 1);
-                        const diff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-                        return diff >= 0 && diff < 12 && (parseFloat(t.amount.toString()) || 0) > 0;
-                      }).reduce((sum, t) => sum + (parseFloat(t.amount.toString()) || 0), 0);
-
-                      const avgMonthlyExpense = last12MonthsExpenses / 12;
+                      // Calculate profit/loss
+                      const currentMonthProfit = currentMonthBusinessIncome - currentMonthExpenses;
+                      const ytdProfit = ytdBusinessIncome - ytdBusinessExpenses;
 
                       return (
                         <div key="business-pl" className="bg-[#0d0d0d] rounded-3xl border border-gray-800 p-8 shadow-xl">
@@ -3436,27 +3446,53 @@ const App: React.FC = () => {
                                 <Briefcase size={20} className="text-purple-500" />
                                 Business P&L Summary
                               </h3>
-                              <p className="text-gray-500 text-xs mt-1">Expense overview for {currentYear}</p>
+                              <p className="text-gray-500 text-xs mt-1">Profit & Loss for {currentYear}</p>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            {/* Current Month */}
                             <div className="bg-gray-900/40 p-6 rounded-2xl border border-gray-800">
-                              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Current Month</p>
-                              <h3 className="text-3xl font-bold text-white font-mono">${currentMonthExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                              <p className="text-xs text-gray-500 mt-2">{months[currentMonth]} {currentYear}</p>
+                              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Current Month - {months[currentMonth]}</p>
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Revenue</span>
+                                  <span className="text-lg font-mono font-bold text-emerald-400">+${currentMonthBusinessIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Expenses</span>
+                                  <span className="text-lg font-mono font-bold text-rose-400">-${currentMonthExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="h-px bg-gray-700"></div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-bold text-white">Net Profit</span>
+                                  <span className={`text-2xl font-mono font-bold ${currentMonthProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {currentMonthProfit >= 0 ? '+' : ''}${currentMonthProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
 
+                            {/* YTD */}
                             <div className="bg-gray-900/40 p-6 rounded-2xl border border-gray-800">
-                              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Year to Date</p>
-                              <h3 className="text-3xl font-bold text-purple-400 font-mono">${ytdBusinessExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                              <p className="text-xs text-gray-500 mt-2">Total {currentYear} expenses</p>
-                            </div>
-
-                            <div className="bg-gray-900/40 p-6 rounded-2xl border border-gray-800">
-                              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">Avg Monthly (12M)</p>
-                              <h3 className="text-3xl font-bold text-blue-400 font-mono">${avgMonthlyExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h3>
-                              <p className="text-xs text-gray-500 mt-2">Rolling 12-month average</p>
+                              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Year to Date - {currentYear}</p>
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Revenue</span>
+                                  <span className="text-lg font-mono font-bold text-emerald-400">+${ytdBusinessIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-gray-400">Expenses</span>
+                                  <span className="text-lg font-mono font-bold text-rose-400">-${ytdBusinessExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="h-px bg-gray-700"></div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-bold text-white">Net Profit</span>
+                                  <span className={`text-2xl font-mono font-bold ${ytdProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {ytdProfit >= 0 ? '+' : ''}${ytdProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
