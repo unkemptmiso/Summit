@@ -726,7 +726,7 @@ const App: React.FC = () => {
   const handleAddDrivingLog = () => {
     setDrivingLog(prev => [{
       id: Date.now(),
-      date: new Date().toISOString().split('T')[0],
+      date: `${currentYear}-01-01`,
       miles: '',
       destination: '',
       purpose: ''
