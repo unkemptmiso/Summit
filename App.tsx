@@ -313,6 +313,15 @@ const App: React.FC = () => {
   // History Expansion State
   const [expandedHistoryIndex, setExpandedHistoryIndex] = useState<number | null>(null);
 
+  // History Comment Modal State
+  const [commentModal, setCommentModal] = useState<{
+    isOpen: boolean;
+    type: 'asset' | 'income';
+    displayDate: string;
+    sortKey: string;
+  }>({ isOpen: false, type: 'asset', displayDate: '', sortKey: '' });
+  const [pendingComment, setPendingComment] = useState("");
+
   // Chart State (Assets)
   const [chartTimeView, setChartTimeView] = useState<'month' | 'year'>('month');
   const [chartToggles, setChartToggles] = useState({
@@ -2026,32 +2035,79 @@ const App: React.FC = () => {
   };
 
   const saveMonthToHistory = () => {
-    const displayDate = `${months[currentMonth]} ${currentYear}`;
+    const displayDate = `${months[currentMonth] || 'Unknown'} ${currentYear}`;
     const sortKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}`;
-    // Annualized Pre-Tax (Gross) Income
-    const preTaxIncome = incomeStreams.reduce((acc, s) => acc + (parseFloat(s.grossAmount.toString()) || 0), 0) * 12;
-    const comment = prompt("Add a comment for this month:");
-    const snapshot = JSON.parse(JSON.stringify(assetStructure));
+    setPendingComment("");
+    setCommentModal({ isOpen: true, type: 'asset', displayDate, sortKey });
+  };
 
-    const newEntry: MonthlyHistoryEntry = {
-      date: displayDate,
-      sortKey: sortKey,
-      netWorth: netWorthData,
-      netDiff: monthlyNetDiff,
-      yield: monthlyYield,
-      preTaxIncome: preTaxIncome,
-      comment: comment || "",
-      snapshot: snapshot
-    };
+  const handleConfirmSave = () => {
+    const { type, displayDate, sortKey } = commentModal;
+    try {
+      if (type === 'asset') {
+        const preTaxIncome = (incomeStreams || []).reduce((acc, s) => {
+          const val = s?.grossAmount ? parseFloat(String(s.grossAmount)) : 0;
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0) * 12;
 
-    setMonthlyHistory(prev => {
-      const filtered = prev.filter(h => (h.sortKey || h.date) !== sortKey && h.date !== displayDate);
-      return [...filtered, newEntry].sort((a, b) => {
-        const keyA = a.sortKey || a.date;
-        const keyB = b.sortKey || b.date;
-        return keyB.localeCompare(keyA);
-      });
-    });
+        const snapshot = assetStructure ? JSON.parse(JSON.stringify(assetStructure)) : [];
+
+        const newEntry: MonthlyHistoryEntry = {
+          date: displayDate,
+          sortKey: sortKey,
+          netWorth: netWorthData || 0,
+          netDiff: monthlyNetDiff || 0,
+          yield: monthlyYield || 0,
+          preTaxIncome: preTaxIncome,
+          comment: pendingComment || "",
+          snapshot: snapshot
+        };
+
+        setMonthlyHistory(prev => {
+          const historyArray = Array.isArray(prev) ? prev : [];
+          const filtered = historyArray.filter(h => h && (h.sortKey || h.date) !== sortKey && h.date !== displayDate);
+          return [...filtered, newEntry].sort((a, b) => {
+            const keyA = a.sortKey || a.date || "";
+            const keyB = b.sortKey || b.date || "";
+            return String(keyB).localeCompare(String(keyA));
+          });
+        });
+        setToast({ message: `Snapshot saved for ${displayDate}`, show: true });
+      } else {
+        const totalGross = (incomeStreams || []).reduce((acc, s) => {
+          const val = s?.grossAmount ? parseFloat(String(s.grossAmount)) : 0;
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+        const totalNet = (incomeStreams || []).reduce((acc, s) => {
+          const val = s?.netAmount ? parseFloat(String(s.netAmount)) : 0;
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+
+        const newEntry: IncomeHistoryEntry = {
+          date: displayDate,
+          sortKey: sortKey,
+          totalGross: totalGross,
+          totalNet: totalNet,
+          streams: incomeStreams ? JSON.parse(JSON.stringify(incomeStreams)) : [],
+          comment: pendingComment || ""
+        };
+
+        setIncomeHistory(prev => {
+          const historyArray = Array.isArray(prev) ? prev : [];
+          const filtered = historyArray.filter(h => h && (h.sortKey || h.date) !== sortKey && h.date !== displayDate);
+          return [...filtered, newEntry].sort((a, b) => {
+            const keyA = a.sortKey || a.date || "";
+            const keyB = b.sortKey || b.date || "";
+            return String(keyB).localeCompare(String(keyA));
+          });
+        });
+        setToast({ message: `Income history saved for ${displayDate}`, show: true });
+      }
+      setCommentModal({ ...commentModal, isOpen: false });
+    } catch (err) {
+      console.error(`Failed to save ${type} history:`, err);
+      alert(`Failed to save to history: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   const updateHistoryComment = (identifier: string, newComment: string) => {
@@ -2295,27 +2351,10 @@ const App: React.FC = () => {
   };
 
   const saveIncomeToHistory = () => {
-    const displayDate = `${months[currentMonth]} ${currentYear}`;
+    const displayDate = `${months[currentMonth] || 'Unknown'} ${currentYear}`;
     const sortKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}`;
-
-    const totalGross = incomeStreams.reduce((acc, s) => acc + (parseFloat(s.grossAmount.toString()) || 0), 0);
-    const totalNet = incomeStreams.reduce((acc, s) => acc + (parseFloat(s.netAmount.toString()) || 0), 0);
-
-    const comment = prompt("Add a comment for this month's income:");
-
-    const newEntry: IncomeHistoryEntry = {
-      date: displayDate,
-      sortKey: sortKey,
-      totalGross: totalGross,
-      totalNet: totalNet,
-      streams: JSON.parse(JSON.stringify(incomeStreams)),
-      comment: comment || ""
-    };
-
-    setIncomeHistory(prev => {
-      const filtered = prev.filter(h => h.sortKey !== sortKey && h.date !== displayDate);
-      return [...filtered, newEntry].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-    });
+    setPendingComment("");
+    setCommentModal({ isOpen: true, type: 'income', displayDate, sortKey });
   };
 
   const updateIncomeHistoryComment = (identifier: string, newComment: string) => {
@@ -5059,6 +5098,48 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* History Comment Modal */}
+          {commentModal.isOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-[#0d0d0d] border border-gray-800 rounded-3xl p-8 max-w-lg w-full shadow-2xl space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <SaveIcon size={20} className={theme.text} /> Save to {commentModal.type === 'asset' ? 'Asset' : 'Income'} History
+                  </h3>
+                  <p className="text-gray-500 text-sm mt-1">
+                    Add a comment for {commentModal.displayDate} {commentModal.type === 'income' ? 'income' : ''}.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block">Optional Comment</label>
+                  <textarea
+                    autoFocus
+                    value={pendingComment}
+                    onChange={(e) => setPendingComment(e.target.value)}
+                    placeholder="e.g. Major bonus, car repair, quarterly dividends..."
+                    className="w-full bg-gray-900/50 border border-gray-800 rounded-xl p-4 text-white text-sm outline-none focus:border-gray-700 min-h-[100px] transition-colors"
+                  />
+                </div>
+
+                <div className="flex space-x-3 pt-2">
+                  <button
+                    onClick={handleConfirmSave}
+                    className={`flex-1 ${theme.primary} ${theme.primaryHover} text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg`}
+                  >
+                    SAVE ENTRY
+                  </button>
+                  <button
+                    onClick={() => setCommentModal({ ...commentModal, isOpen: false })}
+                    className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Global Export Modal */}
           {
