@@ -201,6 +201,16 @@ const THEMES = {
   },
 };
 
+const SIDEBAR_TABS = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { id: 'expenses', icon: Receipt, label: 'Spending Ledger' },
+  { id: 'assets', icon: Wallet, label: 'Asset Watch' },
+  { id: 'income', icon: TrendingUp, label: 'Income Manager' },
+  { id: 'business', icon: Briefcase, label: 'Business Center' },
+  { id: 'mileage', icon: Car, label: 'Driving Log' },
+  { id: 'settings', icon: Settings, label: 'Settings' }
+];
+
 const App: React.FC = () => {
   // --- UI State ---
   const [activeTab, setActiveTab] = useState('expenses');
@@ -283,6 +293,7 @@ const App: React.FC = () => {
   const [drivingPurposes, setDrivingPurposes] = useState<string[]>(INITIAL_DRIVING_PURPOSES);
   const [drivingLog, setDrivingLog] = useState<DrivingLogEntry[]>([]);
   const [irsMileageRate, setIrsMileageRate] = useState(0.67);
+  const [hiddenTabs, setHiddenTabs] = useState<string[]>([]);
 
   // Asset Editing State
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -361,7 +372,8 @@ const App: React.FC = () => {
     incomeStreams, incomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, irsMileageRate,
     chartToggles,
-    customColors
+    customColors,
+    hiddenTabs
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -372,7 +384,8 @@ const App: React.FC = () => {
     incomeStreams, incomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, irsMileageRate,
     chartToggles,
-    customColors
+    customColors,
+    hiddenTabs
   ]);
 
   const loadData = (data: AppData) => {
@@ -414,6 +427,9 @@ const App: React.FC = () => {
 
     // Custom Colors
     if (data.customColors) setCustomColors(data.customColors);
+
+    // Tab Visibility
+    if (data.hiddenTabs) setHiddenTabs(data.hiddenTabs);
 
     setToast({ message: "Data loaded successfully", show: true });
   };
@@ -3098,15 +3114,7 @@ const App: React.FC = () => {
           <h1 className="text-xl font-bold tracking-tight text-white">Summit</h1>
         </div>
         <nav className="flex-1 space-y-2 overflow-y-auto pr-2">
-          {[
-            { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-            { id: 'expenses', icon: Receipt, label: 'Spending Ledger' },
-            { id: 'assets', icon: Wallet, label: 'Asset Watch' },
-            { id: 'income', icon: TrendingUp, label: 'Income Manager' },
-            { id: 'business', icon: Briefcase, label: 'Business Center' },
-            { id: 'mileage', icon: Car, label: 'Driving Log' },
-            { id: 'settings', icon: Settings, label: 'Settings' }
-          ].map((item) => (
+          {SIDEBAR_TABS.filter(item => !hiddenTabs.includes(item.id) || item.id === 'settings').map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
@@ -4628,6 +4636,33 @@ const App: React.FC = () => {
                             </div>
                             <span className={`text-xs font-bold uppercase tracking-wider ${currentTheme === key ? 'text-white' : 'text-gray-500'}`}>{t.name}</span>
                           </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-800 pt-10">
+                      <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Eye size={20} className="text-gray-400" /> Sidebar Visibility</h3>
+                      <p className="text-gray-500 text-sm mb-6">Hide tabs you don't use to keep the sidebar clean.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {SIDEBAR_TABS.filter(t => t.id !== 'settings').map(tab => (
+                          <div key={tab.id} className="flex items-center justify-between bg-gray-900/30 border border-gray-800 rounded-xl p-4">
+                            <div className="flex items-center gap-3">
+                              <tab.icon size={18} className="text-gray-500" />
+                              <span className="text-sm font-bold text-gray-300">{tab.label}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setHiddenTabs(prev =>
+                                  prev.includes(tab.id)
+                                    ? prev.filter(id => id !== tab.id)
+                                    : [...prev, tab.id]
+                                );
+                              }}
+                              className={`w-12 h-6 rounded-full transition-all relative ${!hiddenTabs.includes(tab.id) ? theme.primary : 'bg-gray-800'}`}
+                            >
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${!hiddenTabs.includes(tab.id) ? 'right-1' : 'left-1'}`} />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     </div>
