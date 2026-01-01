@@ -4733,11 +4733,8 @@ const App: React.FC = () => {
                     onClick={() => setSettingsActiveSection('Data Management')}
                     className={`w-full text-left px-4 py-3 rounded-xl transition-all font-medium text-sm flex justify-between items-center mt-4 ${settingsActiveSection === 'Data Management' ? `bg-blue-900/20 text-blue-400 border border-blue-800/50` : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
                   >
-                    <div className="flex items-center gap-2">
-                      <Archive size={16} />
-                      Data Management
-                    </div>
-                    <ChevronRight size={14} />
+                    Data Management
+                    {settingsActiveSection === 'Data Management' && <ChevronRight size={14} />}
                   </button>
                 </div>
 
