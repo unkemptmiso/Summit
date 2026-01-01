@@ -296,6 +296,8 @@ const App: React.FC = () => {
   const [settingsSubSection, setSettingsSubSection] = useState<string | null>(null);
   const [editingItemOriginalName, setEditingItemOriginalName] = useState<string | null>(null);
   const [editingItemNewName, setEditingItemNewName] = useState("");
+  const [isAddingSettingsItem, setIsAddingSettingsItem] = useState(false);
+  const [newSettingsItemName, setNewSettingsItemName] = useState("");
 
   // History Expansion State
   const [expandedHistoryIndex, setExpandedHistoryIndex] = useState<number | null>(null);
@@ -318,6 +320,7 @@ const App: React.FC = () => {
   const [fileHandle, setFileHandle] = useState<FileSystemFileHandle | string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error' | null>(null);
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
+  const [customColors, setCustomColors] = useState<Record<string, string>>({});
 
   // Electron Auto-Load Effect
   useEffect(() => {
@@ -357,7 +360,8 @@ const App: React.FC = () => {
     businessRecurringExpenses, businessSearchQuery,
     incomeStreams, incomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, irsMileageRate,
-    chartToggles
+    chartToggles,
+    customColors
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -367,7 +371,8 @@ const App: React.FC = () => {
     businessRecurringExpenses, businessSearchQuery,
     incomeStreams, incomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, irsMileageRate,
-    chartToggles
+    chartToggles,
+    customColors
   ]);
 
   const loadData = (data: AppData) => {
@@ -407,6 +412,9 @@ const App: React.FC = () => {
     // Chart
     if (data.chartToggles) setChartToggles(data.chartToggles);
 
+    // Custom Colors
+    if (data.customColors) setCustomColors(data.customColors);
+
     setToast({ message: "Data loaded successfully", show: true });
   };
 
@@ -429,6 +437,24 @@ const App: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [appData, fileHandle]);
+
+  // Auto-populate asset values from latest history snapshot if current is empty
+  useEffect(() => {
+    if (monthlyHistory.length === 0) return;
+
+    // Check if current assetStructure is "mostly empty" (no values entered)
+    const isCurrentEmpty = assetStructure.every(cat =>
+      cat.items.every(item => item.value === '' || item.value === 0 || item.value === '0')
+    );
+
+    if (isCurrentEmpty) {
+      // Find the latest entry (they are sorted descending by sortKey/date usually)
+      const latestEntry = monthlyHistory[0];
+      if (latestEntry && latestEntry.snapshot) {
+        setAssetStructure(latestEntry.snapshot);
+      }
+    }
+  }, [monthlyHistory]); // Run when history is loaded or updated
 
 
   const updateFileHandle = (handle: FileSystemFileHandle | string | null) => {
@@ -1408,6 +1434,30 @@ const App: React.FC = () => {
     setBusinessTransactions(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
+  const handleAddSettingsItem = () => {
+    if (!newSettingsItemName.trim()) return;
+    const val = newSettingsItemName.trim();
+
+    if (settingsSubSection === 'categories') {
+      if (settingsActiveSection === 'Business Center') {
+        if (!businessCategories.includes(val)) setBusinessCategories(prev => [...prev, val]);
+      } else {
+        if (!categories.includes(val)) setCategories(prev => [...prev, val]);
+      }
+    } else if (settingsSubSection === 'methods') {
+      if (settingsActiveSection === 'Business Center') {
+        if (!businessPaymentMethods.includes(val)) setBusinessPaymentMethods(prev => [...prev, val]);
+      } else {
+        if (!paymentMethods.includes(val)) setPaymentMethods(prev => [...prev, val]);
+      }
+    } else if (settingsSubSection === 'purposes') {
+      if (!drivingPurposes.includes(val)) setDrivingPurposes(prev => [...prev, val]);
+    }
+
+    setNewSettingsItemName("");
+    setIsAddingSettingsItem(false);
+  };
+
   const handleReceiptUpload = async (file: File, transactionId: number | string) => {
     if (!window.electronAPI) {
       alert("Receipt upload is only available in the Electron app.");
@@ -2285,26 +2335,34 @@ const App: React.FC = () => {
     }
 
     return (
-      <svg viewBox="-1 -1 2 2" className="w-full h-full -rotate-90">
+      <svg viewBox="-105 -105 210 210" className="w-full h-full -rotate-90" shapeRendering="geometricPrecision">
         {data.map((slice, i) => {
-          const [startX, startY] = [Math.cos(2 * Math.PI * cumulativePercent), Math.sin(2 * Math.PI * cumulativePercent)];
           const slicePercent = slice.total / total;
+          const [startX, startY] = [
+            100 * Math.cos(2 * Math.PI * cumulativePercent),
+            100 * Math.sin(2 * Math.PI * cumulativePercent)
+          ];
           cumulativePercent += slicePercent;
-          const [endX, endY] = [Math.cos(2 * Math.PI * cumulativePercent), Math.sin(2 * Math.PI * cumulativePercent)];
+          const [endX, endY] = [
+            100 * Math.cos(2 * Math.PI * cumulativePercent),
+            100 * Math.sin(2 * Math.PI * cumulativePercent)
+          ];
           const largeArcFlag = slicePercent > 0.5 ? 1 : 0;
-          const color = NEON_PALETTE[i % NEON_PALETTE.length];
+          const color = customColors[slice.name] || NEON_PALETTE[i % NEON_PALETTE.length];
           return (
             <path
               key={slice.name}
-              d={`M 0 0 L ${startX} ${startY} A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY} Z`}
+              d={`M 0 0 L ${startX} ${startY} A 100 100 0 ${largeArcFlag} 1 ${endX} ${endY} Z`}
               fill={color}
+              stroke={color}
+              strokeWidth="0.5"
               className="hover:opacity-80 transition-opacity cursor-pointer"
             >
               <title>{`${slice.name}: $${slice.total.toFixed(2)}`}</title>
             </path>
           );
         })}
-        <circle cx="0" cy="0" r="0.6" fill="#0d0d0d" />
+        <circle cx="0" cy="0" r="60" fill="#0d0d0d" />
       </svg>
     );
   };
@@ -2727,7 +2785,7 @@ const App: React.FC = () => {
       const sortedCats = Object.keys(catTotals).sort((a, b) => catTotals[b] - catTotals[a]);
       const colors: Record<string, string> = {};
       sortedCats.forEach((cat, i) => {
-        colors[cat] = NEON_PALETTE[i % NEON_PALETTE.length];
+        colors[cat] = customColors[cat] || NEON_PALETTE[i % NEON_PALETTE.length];
       });
 
       return { processedData: arr, maxTotal: max, categoryColors: colors };
@@ -3251,7 +3309,7 @@ const App: React.FC = () => {
                   <div className="mt-8 w-full">
                     <div className="flex flex-wrap justify-center gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
                       {categoryStats.map((s, i) => {
-                        const color = NEON_PALETTE[i % NEON_PALETTE.length];
+                        const color = customColors[s.name] || NEON_PALETTE[i % NEON_PALETTE.length];
                         const percent = totalMonthlySpend > 0 ? (s.total / totalMonthlySpend) * 100 : 0;
                         return (
                           <div key={s.name} className="flex items-center space-x-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-800/80 transition-colors">
@@ -3610,7 +3668,7 @@ const App: React.FC = () => {
                   <div className="mt-8 w-full">
                     <div className="flex flex-wrap justify-center gap-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
                       {businessCategoryStats.map((s, i) => {
-                        const color = NEON_PALETTE[i % NEON_PALETTE.length];
+                        const color = customColors[s.name] || NEON_PALETTE[i % NEON_PALETTE.length];
                         const percent = totalBusinessMonthlySpend > 0 ? (s.total / totalBusinessMonthlySpend) * 100 : 0;
                         return (
                           <div key={s.name} className="flex items-center space-x-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-800/80 transition-colors">
@@ -4023,9 +4081,13 @@ const App: React.FC = () => {
                     <div className="w-56 h-56">
                       <PieChartComp data={assetAllocationData} hideEmptyMessage={true} />
                     </div>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-0">
-                      <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Total Assets</span>
-                      <span className="text-xl font-bold text-white">${totalAssetsValue.toLocaleString()}</span>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-0 px-12 text-center">
+                      <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-0.5">Total Assets</span>
+                      <span className={`font-bold text-white transition-all duration-300 ${totalAssetsValue.toLocaleString().length > 12 ? 'text-sm' :
+                        totalAssetsValue.toLocaleString().length > 9 ? 'text-base' : 'text-xl'
+                        }`}>
+                        ${totalAssetsValue.toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -4042,7 +4104,10 @@ const App: React.FC = () => {
                           <div className="flex items-center gap-3">
                             <div
                               className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]"
-                              style={{ backgroundColor: NEON_PALETTE[i % NEON_PALETTE.length], color: NEON_PALETTE[i % NEON_PALETTE.length] }}
+                              style={{
+                                backgroundColor: customColors[d.name] || NEON_PALETTE[i % NEON_PALETTE.length],
+                                color: customColors[d.name] || NEON_PALETTE[i % NEON_PALETTE.length]
+                              }}
                             />
                             <div className="flex flex-col">
                               <span className="text-sm font-bold text-gray-300">{d.name}</span>
@@ -4155,6 +4220,7 @@ const App: React.FC = () => {
                     <thead>
                       <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
                         <th className="px-6 py-4 w-32">Date</th>
+                        <th className="px-6 py-4 text-right">Net Worth</th>
                         <th className="px-6 py-4 text-right">Net Difference</th>
                         <th className="px-6 py-4 text-right">Monthly Yield</th>
                         <th className="px-6 py-4">Comments</th>
@@ -4171,6 +4237,9 @@ const App: React.FC = () => {
                             <td className="px-6 py-4 text-sm font-bold text-gray-300 flex items-center gap-2">
                               {expandedHistoryIndex === index ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />}
                               {h.date}
+                            </td>
+                            <td className="px-6 py-4 text-right text-sm font-bold text-white font-mono">
+                              ${h.netWorth.toLocaleString()}
                             </td>
                             <td className={`px-6 py-4 text-right text-sm font-mono ${h.netDiff > 0 ? 'text-green-400' : h.netDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                               {h.netDiff > 0 ? '+' : ''}{h.netDiff.toLocaleString()}
@@ -4191,7 +4260,7 @@ const App: React.FC = () => {
                           </tr>
                           {expandedHistoryIndex === index && (
                             <tr className="bg-gray-950/30">
-                              <td colSpan={5} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
+                              <td colSpan={6} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
                                 {h.snapshot ? (
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pl-6 border-l-2 border-gray-800">
                                     {h.snapshot.map(cat => (
@@ -4609,6 +4678,34 @@ const App: React.FC = () => {
                       </div>
                       <ChevronRight className="text-gray-600 group-hover:text-white" />
                     </div>
+
+                    <div
+                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                      onClick={() => setSettingsSubSection('colors')}
+                    >
+                      <div>
+                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Palette size={18} /> Category Colors</h4>
+                        <p className="text-sm text-gray-500 mt-1">Customize pie chart colors</p>
+                      </div>
+                      <ChevronRight className="text-gray-600 group-hover:text-white" />
+                    </div>
+                  </div>
+                )}
+
+                {/* --- ASSET WATCH --- */}
+                {settingsActiveSection === 'Asset Watch' && !settingsSubSection && (
+                  <div className="max-w-2xl space-y-6 animate-in slide-in-from-right-4 duration-300">
+                    <h3 className="text-lg font-bold text-white mb-2">Configuration</h3>
+                    <div
+                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                      onClick={() => setSettingsSubSection('colors')}
+                    >
+                      <div>
+                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Palette size={18} /> Category Colors</h4>
+                        <p className="text-sm text-gray-500 mt-1">Customize pie chart colors</p>
+                      </div>
+                      <ChevronRight className="text-gray-600 group-hover:text-white" />
+                    </div>
                   </div>
                 )}
 
@@ -4656,41 +4753,101 @@ const App: React.FC = () => {
                         <h3 className="text-xl font-bold text-white">
                           {settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? 'Business Categories' : 'Expense Categories') :
                             settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? 'Business Payment Methods' : 'Payment Methods') :
-                              'Trip Purposes'}
+                              settingsSubSection === 'colors' ? 'Category Colors' :
+                                'Trip Purposes'}
                         </h3>
-                        <button
-                          onClick={() => {
-                            const newVal = prompt(
-                              settingsSubSection === 'categories' ? "Add new category:" :
-                                settingsSubSection === 'methods' ? "Add new payment method:" :
-                                  "Add new driving purpose:"
-                            );
-
-                            if (newVal && newVal.trim()) {
-                              const val = newVal.trim();
-                              if (settingsSubSection === 'categories') {
-                                if (settingsActiveSection === 'Business Center') {
-                                  if (!businessCategories.includes(val)) setBusinessCategories(prev => [...prev, val]);
-                                } else {
-                                  if (!categories.includes(val)) setCategories(prev => [...prev, val]);
-                                }
-                              } else if (settingsSubSection === 'methods') {
-                                if (settingsActiveSection === 'Business Center') {
-                                  if (!businessPaymentMethods.includes(val)) setBusinessPaymentMethods(prev => [...prev, val]);
-                                } else {
-                                  if (!paymentMethods.includes(val)) setPaymentMethods(prev => [...prev, val]);
-                                }
-                              } else {
-                                if (!drivingPurposes.includes(val)) setDrivingPurposes(prev => [...prev, val]);
-                              }
-                            }
-                          }}
-                          className={`${theme.primary} ${theme.primaryHover} text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2`}
-                        >
-                          <Plus size={14} /> ADD NEW
-                        </button>
+                        {settingsSubSection !== 'colors' && (
+                          <button
+                            onClick={() => {
+                              setIsAddingSettingsItem(true);
+                              setNewSettingsItemName("");
+                            }}
+                            className={`${theme.primary} ${theme.primaryHover} text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2`}
+                          >
+                            <Plus size={14} /> ADD NEW
+                          </button>
+                        )}
                       </div>
                       <div className="divide-y divide-gray-800 max-h-[60vh] overflow-y-auto">
+                        {settingsSubSection === 'colors' && (
+                          <div className="p-6 space-y-6">
+                            {(settingsActiveSection === 'Asset Watch' ? assetAllocationData.map(d => d.name) : categories).map((catName, i) => (
+                              <div key={catName} className="flex flex-col gap-3 group bg-gray-900/20 p-4 rounded-xl border border-gray-800/50 hover:border-gray-700 transition-all">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className="w-4 h-4 rounded-full shadow-[0_0_10px_currentColor]"
+                                      style={{
+                                        backgroundColor: customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length],
+                                        color: customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length]
+                                      }}
+                                    />
+                                    <span className="text-sm font-bold text-gray-200">{catName}</span>
+                                  </div>
+                                  {customColors[catName] && (
+                                    <button
+                                      onClick={() => {
+                                        const newColors = { ...customColors };
+                                        delete newColors[catName];
+                                        setCustomColors(newColors);
+                                      }}
+                                      className="text-[10px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition-colors"
+                                    >
+                                      Reset
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {NEON_PALETTE.map(color => (
+                                    <button
+                                      key={color}
+                                      onClick={() => setCustomColors(prev => ({ ...prev, [catName]: color }))}
+                                      className={`w-7 h-7 rounded-lg border-2 transition-all ${(customColors[catName] || NEON_PALETTE[i % NEON_PALETTE.length]) === color
+                                        ? 'border-white scale-110 shadow-[0_0_12px_currentColor]'
+                                        : 'border-transparent hover:scale-105 hover:border-gray-600'
+                                        }`}
+                                      style={{ backgroundColor: color, color: color }}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {isAddingSettingsItem && (
+                          <div className="p-4 bg-gray-900/50 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <input
+                              autoFocus
+                              type="text"
+                              placeholder={
+                                settingsSubSection === 'categories' ? "New category name..." :
+                                  settingsSubSection === 'methods' ? "New payment method..." :
+                                    "New driving purpose..."
+                              }
+                              className={`flex-1 bg-gray-950 border ${theme.border} text-white text-sm rounded-lg px-3 py-2 outline-none`}
+                              value={newSettingsItemName}
+                              onChange={(e) => setNewSettingsItemName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleAddSettingsItem();
+                                if (e.key === 'Escape') setIsAddingSettingsItem(false);
+                              }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={handleAddSettingsItem}
+                                className="px-4 py-2 bg-white text-black text-[10px] font-bold rounded-lg hover:bg-gray-200"
+                              >
+                                SAVE
+                              </button>
+                              <button
+                                onClick={() => setIsAddingSettingsItem(false)}
+                                className="p-2 text-gray-500 hover:text-white rounded-lg hover:bg-gray-800"
+                              >
+                                <Minus size={18} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         {(
                           settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? businessCategories : categories) :
                             settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? businessPaymentMethods : paymentMethods) :
@@ -4771,7 +4928,7 @@ const App: React.FC = () => {
                 )}
 
                 {/* --- OTHER SECTIONS PLACEHOLDERS --- */}
-                {['Asset Watch', 'Income Manager'].includes(settingsActiveSection) && (
+                {['Income Manager'].includes(settingsActiveSection) && (
                   <div className="flex flex-col items-center justify-center h-64 text-center opacity-50 animate-in fade-in zoom-in-95 duration-500">
                     <Settings size={48} className="mb-4 text-gray-600" />
                     <h3 className="text-xl font-bold text-white">Coming Soon</h3>

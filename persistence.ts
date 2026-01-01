@@ -29,6 +29,16 @@ declare global {
     }
 }
 
+interface SaveFilePickerOptions {
+    types?: { description: string; accept: Record<string, string[]> }[];
+    suggestedName?: string;
+}
+
+interface OpenFilePickerOptions {
+    types?: { description: string; accept: Record<string, string[]> }[];
+    multiple?: boolean;
+}
+
 export interface AppData {
     // UI State
     activeTab: string;
@@ -71,6 +81,9 @@ export interface AppData {
         liabilities: boolean;
         tracking: boolean;
     };
+
+    // Custom Colors
+    customColors?: Record<string, string>;
 }
 
 // --- Electron Types ---
