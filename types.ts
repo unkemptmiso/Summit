@@ -59,6 +59,12 @@ export interface IncomeHistoryEntry {
   comment: string;
 }
 
+export interface YearlyIncomeEntry {
+  year: number;
+  grossAmount: number;
+  netAmount: number;
+}
+
 export interface DrivingLogEntry {
   id: number | string;
   date: string;

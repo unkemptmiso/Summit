@@ -51,7 +51,8 @@ import {
   DrivingLogEntry,
   CategoryStat,
   AssetItem,
-  RecurringExpense
+  RecurringExpense,
+  YearlyIncomeEntry
 } from './types';
 import {
   AppData,
@@ -292,9 +293,12 @@ const App: React.FC = () => {
   // Income State
   const [incomeStreams, setIncomeStreams] = useState<IncomeStream[]>(INITIAL_INCOME_STREAMS);
   const [incomeHistory, setIncomeHistory] = useState<IncomeHistoryEntry[]>([]);
+  const [yearlyIncomeHistory, setYearlyIncomeHistory] = useState<YearlyIncomeEntry[]>([]);
   const [isAddingIncome, setIsAddingIncome] = useState(false);
   const [newIncomeName, setNewIncomeName] = useState("");
   const [expandedIncomeHistoryIndex, setExpandedIncomeHistoryIndex] = useState<number | null>(null);
+  const [isAddingYearlyRecord, setIsAddingYearlyRecord] = useState(false);
+  const [newYearlyRecord, setNewYearlyRecord] = useState<YearlyIncomeEntry>({ year: new Date().getFullYear() - 1, grossAmount: 0, netAmount: 0 });
   // toggle for income chart 'gross' or 'net'
   const [incomeChartMetric, setIncomeChartMetric] = useState<'gross' | 'net'>('net');
 
@@ -391,7 +395,7 @@ const App: React.FC = () => {
     recurringExpenses, categories, paymentMethods,
     businessTransactions, businessCategories, businessPaymentMethods,
     businessRecurringExpenses, businessSearchQuery,
-    incomeStreams, incomeHistory, incomeChartMetric,
+    incomeStreams, incomeHistory, yearlyIncomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, yearlyMileageRates,
     chartToggles,
     customColors,
@@ -405,7 +409,7 @@ const App: React.FC = () => {
     recurringExpenses, categories, paymentMethods,
     businessTransactions, businessCategories, businessPaymentMethods,
     businessRecurringExpenses, businessSearchQuery,
-    incomeStreams, incomeHistory, incomeChartMetric,
+    incomeStreams, incomeHistory, yearlyIncomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, yearlyMileageRates,
     chartToggles,
     customColors,
@@ -441,6 +445,7 @@ const App: React.FC = () => {
     // Income
     if (data.incomeStreams) setIncomeStreams(data.incomeStreams);
     if (data.incomeHistory) setIncomeHistory(data.incomeHistory);
+    if (data.yearlyIncomeHistory) setYearlyIncomeHistory(data.yearlyIncomeHistory);
     if (data.incomeChartMetric) setIncomeChartMetric(data.incomeChartMetric);
 
     // Driving
@@ -1126,32 +1131,102 @@ const App: React.FC = () => {
 
   // --- Chart Data Preparation (INCOME) ---
   const incomeChartData = useMemo(() => {
-    const sorted = [...incomeHistory].sort((a, b) => (a.sortKey || a.date).localeCompare(b.sortKey || b.date));
-    return sorted.map(entry => {
-      let selectedStreamGross = 0;
-      let selectedStreamNet = 0;
-      if (incomeChartSelectedStreamId) {
-        const found = entry.streams.find(s => s.id === incomeChartSelectedStreamId);
-        if (found) {
-          selectedStreamGross = parseFloat(found.grossAmount.toString()) || 0;
-          selectedStreamNet = parseFloat(found.netAmount.toString()) || 0;
+    if (incomeChartTimeView === 'month') {
+      const allPoints: any[] = [];
+
+      // 1. Process existing monthly history
+      incomeHistory.forEach(entry => {
+        let selectedStreamGross = 0;
+        let selectedStreamNet = 0;
+        if (incomeChartSelectedStreamId) {
+          const found = entry.streams.find(s => s.id === incomeChartSelectedStreamId);
+          if (found) {
+            selectedStreamGross = parseFloat(found.grossAmount.toString()) || 0;
+            selectedStreamNet = parseFloat(found.netAmount.toString()) || 0;
+          }
         }
-      }
+        const dateObj = new Date(entry.sortKey ? entry.sortKey + '-01' : entry.date);
+        const y = dateObj.getFullYear();
+        const m = dateObj.getMonth() + 1;
+        const sKey = entry.sortKey || `${y}-${m.toString().padStart(2, '0')}`;
 
-      const dateObj = new Date(entry.sortKey ? entry.sortKey + '-01' : entry.date);
-      const monthShort = months[dateObj.getMonth()].substring(0, 3);
-      const year = dateObj.getFullYear();
+        allPoints.push({
+          sortKey: sKey,
+          label: `${months[dateObj.getMonth()].substring(0, 3)} '${y.toString().slice(2)}`,
+          fullDate: entry.date,
+          totalGross: entry.totalGross,
+          totalNet: entry.totalNet,
+          selectedStreamGross,
+          selectedStreamNet
+        });
+      });
 
-      return {
-        label: incomeChartTimeView === 'month' ? `${monthShort} '${year.toString().slice(2)}` : year.toString(),
-        fullDate: entry.date,
-        totalGross: entry.totalGross,
-        totalNet: entry.totalNet,
-        selectedStreamGross,
-        selectedStreamNet
-      };
-    });
-  }, [incomeHistory, incomeChartTimeView, incomeChartSelectedStreamId]);
+      // 2. Identify years that have NO monthly data but DO have a yearly record
+      const yearsWithMonthlyData = new Set(allPoints.map(p => p.sortKey.split('-')[0]));
+
+      yearlyIncomeHistory.forEach(record => {
+        const yearStr = record.year.toString();
+        if (!yearsWithMonthlyData.has(yearStr)) {
+          // For legacy yearly data without month-to-month breakdown, we spread it across 12 months 
+          // to show a steady trend on the monthly line graph.
+          const monthlyGross = record.grossAmount / 12;
+          const monthlyNet = record.netAmount / 12;
+          for (let m = 0; m < 12; m++) {
+            const mIdx = m + 1;
+            const sortKey = `${yearStr}-${mIdx.toString().padStart(2, '0')}`;
+            allPoints.push({
+              sortKey,
+              label: `${months[m].substring(0, 3)} '${yearStr.slice(2)}`,
+              fullDate: `${months[m]} ${yearStr}`,
+              totalGross: monthlyGross,
+              totalNet: monthlyNet,
+              selectedStreamGross: 0,
+              selectedStreamNet: 0
+            });
+          }
+        }
+      });
+
+      return allPoints.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    } else {
+      // Yearly view: aggregate monthly history by year AND include yearlyIncomeHistory
+      const yearlyMap: Record<number, { gross: number, net: number }> = {};
+
+      // Aggregate from monthly history
+      incomeHistory.forEach(entry => {
+        const dateObj = new Date(entry.sortKey ? entry.sortKey + '-01' : entry.date);
+        const year = dateObj.getFullYear();
+        if (!yearlyMap[year]) yearlyMap[year] = { gross: 0, net: 0 };
+        yearlyMap[year].gross += entry.totalGross;
+        yearlyMap[year].net += entry.totalNet;
+      });
+
+      // Add from yearlyIncomeHistory (prefer yearly records for those specific years if they exist, 
+      // or just add them if they don't overlap. Usually they won't overlap.)
+      yearlyIncomeHistory.forEach(record => {
+        if (!yearlyMap[record.year]) {
+          yearlyMap[record.year] = { gross: record.grossAmount, net: record.netAmount };
+        } else {
+          // If monthly data exists but is significantly less than the yearly record (e.g. user entered 1 month 
+          // but also the full year total), we could optionally favor the yearly record. 
+          // For now, we favor the yearly record if it's explicitly entered as it's the "official" legacy data.
+          yearlyMap[record.year] = { gross: record.grossAmount, net: record.netAmount };
+        }
+      });
+
+      return Object.keys(yearlyMap).sort().map(yStr => {
+        const y = parseInt(yStr);
+        return {
+          label: yStr,
+          fullDate: yStr,
+          totalGross: yearlyMap[y].gross,
+          totalNet: yearlyMap[y].net,
+          selectedStreamGross: 0,
+          selectedStreamNet: 0
+        };
+      });
+    }
+  }, [incomeHistory, yearlyIncomeHistory, incomeChartTimeView, incomeChartSelectedStreamId, months]);
 
   const totalIncomeYTD = useMemo(() => {
     // Current month income from the live inputs (using Net for YTD Spendable calculation)
@@ -2406,6 +2481,22 @@ const App: React.FC = () => {
 
   const toggleIncomeHistoryExpansion = (index: number) => {
     setExpandedIncomeHistoryIndex(expandedIncomeHistoryIndex === index ? null : index);
+  };
+
+  const handleAddYearlyRecord = () => {
+    if (yearlyIncomeHistory.some(r => r.year === newYearlyRecord.year)) {
+      setToast({ message: `Record for ${newYearlyRecord.year} already exists`, show: true });
+      return;
+    }
+    setYearlyIncomeHistory(prev => [...prev, newYearlyRecord].sort((a, b) => b.year - a.year));
+    setIsAddingYearlyRecord(false);
+    setNewYearlyRecord({ year: new Date().getFullYear() - 1, grossAmount: 0, netAmount: 0 });
+    setToast({ message: "Yearly record added", show: true });
+  };
+
+  const removeYearlyRecord = (year: number) => {
+    setYearlyIncomeHistory(prev => prev.filter(r => r.year !== year));
+    setToast({ message: "Yearly record removed", show: true });
   };
 
 
@@ -4710,6 +4801,102 @@ const App: React.FC = () => {
                         {incomeHistory.length === 0 && (
                           <tr>
                             <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No income history saved yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="mt-12 space-y-4">
+                  <div className="flex justify-between items-center px-2">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Yearly Income Records</h3>
+                    <button onClick={() => setIsAddingYearlyRecord(true)} className={`flex items-center space-x-1 text-xs font-bold ${theme.text} hover:opacity-80`}>
+                      <PlusCircle size={14} /><span>ADD YEARLY RECORD</span>
+                    </button>
+                  </div>
+
+                  {isAddingYearlyRecord && (
+                    <div className="bg-gray-900/80 p-6 rounded-2xl border border-gray-700 animate-in fade-in slide-in-from-top-4 shadow-2xl">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                        <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800/50">
+                          <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Year</label>
+                          <input
+                            type="number"
+                            value={newYearlyRecord.year}
+                            onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
+                            className="bg-transparent text-lg font-bold w-full outline-none text-gray-300 font-mono"
+                          />
+                        </div>
+                        <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800/50">
+                          <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Gross (Pre-Tax)</label>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-500 text-sm">$</span>
+                            <input
+                              type="number"
+                              value={newYearlyRecord.grossAmount}
+                              onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, grossAmount: parseFloat(e.target.value) || 0 }))}
+                              className="bg-transparent text-lg font-bold w-full outline-none text-gray-300 font-mono"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div className="bg-emerald-900/10 p-3 rounded-xl border border-emerald-900/30">
+                          <label className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider mb-1 block">Net (Post-Tax)</label>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-emerald-600 text-sm">$</span>
+                            <input
+                              type="number"
+                              value={newYearlyRecord.netAmount}
+                              onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, netAmount: parseFloat(e.target.value) || 0 }))}
+                              className="bg-transparent text-xl font-bold w-full outline-none text-emerald-400 font-mono"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3 h-full pb-1">
+                          <button onClick={handleAddYearlyRecord} className="flex-1 px-6 py-3 bg-white text-black text-xs font-bold rounded-xl hover:bg-gray-200 shadow-lg">SAVE RECORD</button>
+                          <button onClick={() => setIsAddingYearlyRecord(false)} className="p-3 text-gray-500 hover:text-white rounded-xl hover:bg-gray-800"><Minus size={20} /></button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                          <th className="px-6 py-4">Year</th>
+                          <th className="px-6 py-4 text-right">Total Net</th>
+                          <th className="px-6 py-4 text-right">Total Gross</th>
+                          <th className="px-6 py-4 w-20"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/50">
+                        {yearlyIncomeHistory.map((h) => (
+                          <tr key={h.year} className="hover:bg-gray-800/20 group transition-colors">
+                            <td className="px-6 py-4 text-sm font-bold text-gray-300">
+                              {h.year}
+                            </td>
+                            <td className="px-6 py-4 text-right text-sm font-mono text-emerald-400 font-bold">
+                              ${h.netAmount.toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 text-right text-sm font-mono text-gray-400 font-bold">
+                              ${h.grossAmount.toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={() => removeYearlyRecord(h.year)}
+                                className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {yearlyIncomeHistory.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No previous year records entered.</td>
                           </tr>
                         )}
                       </tbody>

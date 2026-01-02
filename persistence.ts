@@ -5,6 +5,7 @@ import {
     IncomeStream,
     MonthlyHistoryEntry,
     IncomeHistoryEntry,
+    YearlyIncomeEntry,
     DrivingLogEntry,
     RecurringExpense
 } from './types';
@@ -67,6 +68,7 @@ export interface AppData {
     // Income
     incomeStreams: IncomeStream[];
     incomeHistory: IncomeHistoryEntry[];
+    yearlyIncomeHistory: YearlyIncomeEntry[];
     incomeChartMetric: 'gross' | 'net';
 
     // Driving
