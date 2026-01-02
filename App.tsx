@@ -10,6 +10,7 @@ import {
   Settings,
   Plus,
   User,
+  Lock,
   ChevronRight,
   ChevronLeft,
   Trash2,
@@ -64,10 +65,13 @@ import {
 } from './types';
 import {
   AppData,
+  EncryptedData,
   saveToFile,
   getNewFileHandle,
   getOpenFileHandle,
-  readFile
+  readFile,
+  encryptData,
+  decryptData
 } from './persistence';
 import { ScratchPad } from './ScratchPad';
 
@@ -111,6 +115,16 @@ const INITIAL_DRIVING_PURPOSES = [
   "Networking",
   "Licensing"
 ];
+
+// --- Helper Functions ---
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hash));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
 
 const INITIAL_INCOME_STREAMS: IncomeStream[] = [
   { id: '1', name: 'W-2 (Main Job)', grossAmount: 0, netAmount: 0, isBusiness: false },
@@ -377,6 +391,22 @@ const App: React.FC = () => {
   const [colorMode, setColorMode] = useState<'light' | 'dark' | 'midnight'>('dark');
   const [userName, setUserName] = useState<string>('');
 
+  // --- Security State ---
+  const [isPasswordProtectionEnabled, setIsPasswordProtectionEnabled] = useState<boolean>(false);
+  const [passwordHash, setPasswordHash] = useState<string>('');
+  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [inputPassword, setInputPassword] = useState<string>('');
+  const [lockError, setLockError] = useState<boolean>(false);
+  const [pendingEncryptedData, setPendingEncryptedData] = useState<EncryptedData | null>(null);
+  const [sessionPassword, setSessionPassword] = useState<string | null>(null);
+
+  // Security UI State
+  const [securityFormMode, setSecurityFormMode] = useState<'none' | 'enable' | 'disable' | 'change'>('none');
+  const [secInputCurrent, setSecInputCurrent] = useState("");
+  const [secInputNew, setSecInputNew] = useState("");
+  const [secInputConfirm, setSecInputConfirm] = useState("");
+  const [secError, setSecError] = useState("");
+
   // Electron Auto-Load Effect
   useEffect(() => {
     const loadLastFile = async () => {
@@ -424,7 +454,9 @@ const App: React.FC = () => {
     receiptsDir,
     businessReceiptsDir,
     colorMode,
-    userName
+    userName,
+    isPasswordProtectionEnabled,
+    passwordHash
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -443,64 +475,82 @@ const App: React.FC = () => {
     receiptsDir,
     businessReceiptsDir,
     colorMode,
-    userName
+    userName,
+    isPasswordProtectionEnabled,
+    passwordHash
   ]);
 
 
-  const loadData = (data: AppData) => {
+  const loadData = (data: AppData | EncryptedData) => {
+    // Check if data is encrypted
+    if ((data as EncryptedData).isEncrypted) {
+      setPendingEncryptedData(data as EncryptedData);
+      setIsLocked(true);
+      // Don't toast successfully yet, wait for unlock
+      return;
+    }
+
+    // Cast to AppData since we know it's not encrypted
+    const appData = data as AppData;
+
     // UI
-    if (data.activeTab) setActiveTab(data.activeTab);
-    if (data.currentTheme) setCurrentTheme(data.currentTheme as any);
-    if (data.appFontSize) setAppFontSize(data.appFontSize);
+    if (appData.activeTab) setActiveTab(appData.activeTab);
+    if (appData.currentTheme) setCurrentTheme(appData.currentTheme as any);
+    if (appData.appFontSize) setAppFontSize(appData.appFontSize);
 
     // Time
-    if (data.currentYear) setCurrentYear(data.currentYear);
-    if (data.currentMonth !== undefined) setCurrentMonth(data.currentMonth);
+    if (appData.currentYear) setCurrentYear(appData.currentYear);
+    if (appData.currentMonth !== undefined) setCurrentMonth(appData.currentMonth);
 
     // Expenses
-    if (data.transactions) setTransactions(data.transactions);
-    if (data.assetStructure) setAssetStructure(data.assetStructure);
-    if (data.monthlyHistory) setMonthlyHistory(data.monthlyHistory);
-    if (data.recurringExpenses) setRecurringExpenses(data.recurringExpenses);
-    if (data.categories) setCategories(data.categories);
-    if (data.paymentMethods) setPaymentMethods(data.paymentMethods);
+    if (appData.transactions) setTransactions(appData.transactions);
+    if (appData.assetStructure) setAssetStructure(appData.assetStructure);
+    if (appData.monthlyHistory) setMonthlyHistory(appData.monthlyHistory);
+    if (appData.recurringExpenses) setRecurringExpenses(appData.recurringExpenses);
+    if (appData.categories) setCategories(appData.categories);
+    if (appData.paymentMethods) setPaymentMethods(appData.paymentMethods);
 
     // Business
-    if (data.businessTransactions) setBusinessTransactions(data.businessTransactions);
-    if (data.businessCategories) setBusinessCategories(data.businessCategories);
-    if (data.businessPaymentMethods) setBusinessPaymentMethods(data.businessPaymentMethods);
-    if (data.businessRecurringExpenses) setBusinessRecurringExpenses(data.businessRecurringExpenses);
+    if (appData.businessTransactions) setBusinessTransactions(appData.businessTransactions);
+    if (appData.businessCategories) setBusinessCategories(appData.businessCategories);
+    if (appData.businessPaymentMethods) setBusinessPaymentMethods(appData.businessPaymentMethods);
+    if (appData.businessRecurringExpenses) setBusinessRecurringExpenses(appData.businessRecurringExpenses);
 
     // Income
-    if (data.incomeStreams) setIncomeStreams(data.incomeStreams);
-    if (data.incomeHistory) setIncomeHistory(data.incomeHistory);
-    if (data.yearlyIncomeHistory) setYearlyIncomeHistory(data.yearlyIncomeHistory);
-    if (data.incomeChartMetric) setIncomeChartMetric(data.incomeChartMetric);
+    if (appData.incomeStreams) setIncomeStreams(appData.incomeStreams);
+    if (appData.incomeHistory) setIncomeHistory(appData.incomeHistory);
+    if (appData.yearlyIncomeHistory) setYearlyIncomeHistory(appData.yearlyIncomeHistory);
+    if (appData.incomeChartMetric) setIncomeChartMetric(appData.incomeChartMetric);
 
     // Driving
-    if (data.drivingLog) setDrivingLog(data.drivingLog);
-    if (data.drivingPurposes) setDrivingPurposes(data.drivingPurposes);
-    if (data.yearlyMileageRates) setYearlyMileageRates(data.yearlyMileageRates);
+    if (appData.drivingLog) setDrivingLog(appData.drivingLog);
+    if (appData.drivingPurposes) setDrivingPurposes(appData.drivingPurposes);
+    if (appData.yearlyMileageRates) setYearlyMileageRates(appData.yearlyMileageRates);
 
     // Chart
-    if (data.chartToggles) setChartToggles(data.chartToggles);
+    if (appData.chartToggles) setChartToggles(appData.chartToggles);
 
     // Custom Colors
-    if (data.customColors) setCustomColors(data.customColors);
+    if (appData.customColors) setCustomColors(appData.customColors);
 
     // Tab Visibility
-    if (data.hiddenTabs) setHiddenTabs(data.hiddenTabs);
+    if (appData.hiddenTabs) setHiddenTabs(appData.hiddenTabs);
 
     // Scratch Pad
-    if (data.scratchPadUrl) setScratchPadUrl(data.scratchPadUrl);
+    if (appData.scratchPadUrl) setScratchPadUrl(appData.scratchPadUrl);
 
     // Dashboard Customization
-    if (data.dashboardOrder) setDashboardOrder(data.dashboardOrder);
-    if (data.hiddenDashboardWidgets) setHiddenDashboardWidgets(data.hiddenDashboardWidgets);
-    if (data.receiptsDir) setReceiptsDir(data.receiptsDir);
-    if (data.businessReceiptsDir) setBusinessReceiptsDir(data.businessReceiptsDir);
-    if (data.colorMode) setColorMode(data.colorMode);
-    if (data.userName) setUserName(data.userName);
+    if (appData.dashboardOrder) setDashboardOrder(appData.dashboardOrder);
+    if (appData.hiddenDashboardWidgets) setHiddenDashboardWidgets(appData.hiddenDashboardWidgets);
+    if (appData.receiptsDir) setReceiptsDir(appData.receiptsDir);
+    if (appData.businessReceiptsDir) setBusinessReceiptsDir(appData.businessReceiptsDir);
+    if (appData.colorMode) setColorMode(appData.colorMode);
+    if (appData.userName) setUserName(appData.userName);
+    if (appData.isPasswordProtectionEnabled) {
+      setIsPasswordProtectionEnabled(appData.isPasswordProtectionEnabled);
+      if (appData.passwordHash) setPasswordHash(appData.passwordHash);
+      setIsLocked(true); // Lock on load if enabled
+    }
 
     setToast({ message: "Data loaded successfully", show: true });
   };
@@ -509,11 +559,20 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!fileHandle) return;
 
+    // Safety check: Don't auto-save if protected but no password session (e.g. locked or just enabled without saving)
+    if (isPasswordProtectionEnabled && !sessionPassword) return;
+
     setSaveStatus('unsaved');
     const timer = setTimeout(async () => {
       setSaveStatus('saving');
       try {
-        await saveToFile(fileHandle, appData);
+        let dataToSave: AppData | EncryptedData = appData;
+
+        if (isPasswordProtectionEnabled && sessionPassword) {
+          dataToSave = await encryptData(appData, sessionPassword);
+        }
+
+        await saveToFile(fileHandle, dataToSave);
         setSaveStatus('saved');
         setLastSavedTime(new Date());
       } catch (err) {
@@ -523,7 +582,7 @@ const App: React.FC = () => {
     }, 2000); // 2 second debounce
 
     return () => clearTimeout(timer);
-  }, [appData, fileHandle]);
+  }, [appData, fileHandle, isPasswordProtectionEnabled, sessionPassword]);
 
   // Auto-populate asset values from latest history snapshot if current is empty
   useEffect(() => {
@@ -553,11 +612,56 @@ const App: React.FC = () => {
     }
   };
 
+  const saveToLocalFile = async (overrideHandle?: FileSystemFileHandle | string) => {
+    let handle = overrideHandle || fileHandle;
+    if (!handle) {
+      try {
+        handle = await getNewFileHandle();
+        // If we got a new handle here (because none was passed or in state), set it
+        setFileHandle(handle);
+      } catch (e) {
+        return; // Cancelled
+      }
+    }
+
+    setSaveStatus('saving');
+    try {
+      console.log("Saving file...", { isPasswordProtectionEnabled, hasSessionPassword: !!sessionPassword });
+      let dataToSave: AppData | EncryptedData = appData;
+
+      if (isPasswordProtectionEnabled) {
+        let pass = sessionPassword;
+        if (!pass) {
+          // Fallback prompt if session is missing (e.g. forced save without unlock? shouldn't happen usually)
+          pass = prompt("Enter password to encrypt file:") || null;
+          if (!pass) throw new Error("Password required to save encrypted file.");
+
+          const hash = await hashPassword(pass);
+          if (hash !== passwordHash) throw new Error("Incorrect password.");
+          setSessionPassword(pass);
+        }
+
+        console.log("Encrypting data before save...");
+        dataToSave = await encryptData(appData, pass);
+      }
+
+      await saveToFile(handle, dataToSave);
+
+      setSaveStatus('saved');
+      setLastSavedTime(new Date());
+      setToast({ message: "File saved successfully", show: true });
+    } catch (e) {
+      console.error("Save failed:", e);
+      setSaveStatus('error');
+      alert("Failed to save: " + (e as Error).message);
+    }
+  };
+
   const handleCreateNewFile = async () => {
     try {
       const handle = await getNewFileHandle();
-      updateFileHandle(handle);
-      await saveToFile(handle, appData);
+      setFileHandle(handle);
+      await saveToLocalFile(handle);
       setSaveStatus('saved');
       setLastSavedTime(new Date());
       setToast({ message: "File created and linked", show: true });
@@ -583,10 +687,8 @@ const App: React.FC = () => {
   const handleSaveAs = async () => {
     try {
       const handle = await getNewFileHandle();
-      updateFileHandle(handle);
-      await saveToFile(handle, appData);
-      setSaveStatus('saved');
-      setLastSavedTime(new Date());
+      updateFileHandle(handle); // This sets state, but async
+      await saveToLocalFile(handle);
       setToast({ message: "Saved as new file", show: true });
     } catch (err) {
       console.error(err);
@@ -1720,6 +1822,93 @@ const App: React.FC = () => {
       console.error("Failed to open directory picker:", err);
       alert("Error opening folder picker: " + (err as Error).message);
     }
+  };
+
+  // --- Security Handlers ---
+  const handleUnlock = async () => {
+    // Case 1: Decrypting a file loaded from disk
+    if (pendingEncryptedData) {
+      try {
+        const decryptedData = await decryptData(pendingEncryptedData, inputPassword);
+        loadData(decryptedData);
+        setIsLocked(false);
+        setSessionPassword(inputPassword); // Cache for saving
+        setPendingEncryptedData(null);
+        setInputPassword("");
+        setLockError(false);
+        setToast({ message: "File decrypted successfully", show: true });
+      } catch (e) {
+        console.error("Decryption failed:", e);
+        setLockError(true);
+      }
+      return;
+    }
+
+    // Case 2: Unlocking UI (legacy or unencrypted file with password enabled in settings)
+    const hash = await hashPassword(inputPassword);
+    if (hash === passwordHash) {
+      setIsLocked(false);
+      setSessionPassword(inputPassword); // Cache for saving
+      setInputPassword("");
+      setLockError(false);
+    } else {
+      setLockError(true);
+    }
+  };
+
+  const handleSetupPassword = async (password: string) => {
+    const hash = await hashPassword(password);
+    setPasswordHash(hash);
+    setSessionPassword(password);
+    setIsPasswordProtectionEnabled(true);
+    setToast({ message: "Password protection enabled. Save file to encrypt.", show: true });
+    if (fileHandle) setSaveStatus('unsaved');
+  };
+
+  const handleDisableProtection = () => {
+    setIsPasswordProtectionEnabled(false);
+    setPasswordHash("");
+    setSessionPassword(null);
+    setToast({ message: "Password protection disabled. Save file to decrypt.", show: true });
+    if (fileHandle) setSaveStatus('unsaved');
+  };
+
+  // --- Security Form Submissions ---
+  const resetSecurityForm = () => {
+    setSecurityFormMode('none');
+    setSecInputCurrent("");
+    setSecInputNew("");
+    setSecInputConfirm("");
+    setSecError("");
+  };
+
+  const submitEnableProtection = async () => {
+    if (!secInputNew) { setSecError("Password cannot be empty"); return; }
+    if (secInputNew !== secInputConfirm) { setSecError("Passwords do not match"); return; }
+
+    await handleSetupPassword(secInputNew);
+    resetSecurityForm();
+  };
+
+  const submitDisableProtection = async () => {
+    // Verify current
+    const hash = await hashPassword(secInputCurrent);
+    if (hash !== passwordHash) { setSecError("Incorrect password"); return; }
+
+    handleDisableProtection();
+    resetSecurityForm();
+  };
+
+  const submitChangePassword = async () => {
+    // Verify current
+    const hash = await hashPassword(secInputCurrent);
+    if (hash !== passwordHash) { setSecError("Incorrect password"); return; }
+
+    if (!secInputNew) { setSecError("New password cannot be empty"); return; }
+    if (secInputNew !== secInputConfirm) { setSecError("Passwords do not match"); return; }
+
+    await handleSetupPassword(secInputNew);
+    resetSecurityForm();
   };
 
   const handleBusinessLedgerImport = (e: ChangeEvent<HTMLInputElement>) => {
@@ -3547,7 +3736,51 @@ const App: React.FC = () => {
   return (
     <>
       <style>{modeStyles}</style>
-      <div className="flex h-screen bg-[#0a0a0a] text-gray-100 font-sans selection:bg-blue-500/30 overflow-hidden relative">
+
+      {/* Lock Screen Overlay */}
+      {isLocked && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a] text-white">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-xl"></div>
+          <div className="relative z-10 w-full max-w-md p-8 bg-gray-900/50 border border-gray-800 rounded-3xl shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/40 mb-2">
+                <Lock size={32} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">Welcome Back</h2>
+                <p className="text-gray-400 text-sm mt-1">Enter your password to access Summit.</p>
+              </div>
+
+              <div className="w-full space-y-4">
+                <div className="relative">
+                  <input
+                    autoFocus
+                    type="password"
+                    placeholder="Password"
+                    value={inputPassword}
+                    onChange={(e) => { setInputPassword(e.target.value); setLockError(false); }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
+                    className={`w-full bg-gray-950/50 border ${lockError ? 'border-red-500' : 'border-gray-700'} rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all text-center text-lg tracking-widest placeholder-gray-600`}
+                  />
+                </div>
+
+                {lockError && (
+                  <p className="text-red-400 text-xs font-bold animate-pulse">Incorrect password. Please try again.</p>
+                )}
+
+                <button
+                  onClick={handleUnlock}
+                  className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors shadow-lg"
+                >
+                  UNLOCK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`flex h-screen bg-[#0a0a0a] text-gray-100 font-sans selection:bg-blue-500/30 overflow-hidden relative ${isLocked ? 'filter blur-md pointer-events-none' : ''}`}>
 
         {/* Sidebar */}
         <aside className="w-64 border-r border-gray-800 flex flex-col p-6 space-y-8 bg-[#0d0d0d] flex-shrink-0">
@@ -5239,7 +5472,7 @@ const App: React.FC = () => {
               <div className="w-64 border-r border-gray-800 p-4 space-y-1 bg-gray-900/20">
                 <h2 className="text-xl font-bold text-white px-4 py-4 mb-2">Settings</h2>
 
-                {['Appearance', 'Dashboard', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
+                {['Appearance', 'Security', 'Dashboard', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
                   <button
                     key={section}
                     onClick={() => { setSettingsActiveSection(section); setSettingsSubSection(null); }}
@@ -5338,6 +5571,133 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* --- SECURITY --- */}
+                {settingsActiveSection === 'Security' && (
+                  <div className="max-w-2xl space-y-10 animate-in slide-in-from-right-4 duration-300">
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Lock size={20} className="text-blue-500" /> Application Lock</h3>
+                      <p className="text-gray-500 text-sm mb-6">Password protection restricts access to the application interface.</p>
+
+                      <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6">
+                        <div className="flex justify-between items-center mb-6">
+                          <div>
+                            <h4 className="text-white font-bold mb-1">Require Password on Startup</h4>
+                            <p className="text-gray-500 text-sm">When enabled, you must enter your password to view any data.</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (securityFormMode !== 'none') {
+                                resetSecurityForm();
+                                return;
+                              }
+                              if (isPasswordProtectionEnabled) {
+                                setSecurityFormMode('disable');
+                              } else {
+                                setSecurityFormMode('enable');
+                              }
+                            }}
+                            className={`w-14 h-7 rounded-full transition-all relative ${isPasswordProtectionEnabled ? 'bg-blue-600' : 'bg-gray-700'}`}
+                          >
+                            <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${isPasswordProtectionEnabled ? 'right-1' : 'left-1'}`} />
+                          </button>
+                        </div>
+
+                        {/* Enable Form */}
+                        {securityFormMode === 'enable' && (
+                          <div className="border-t border-gray-800 pt-6 animate-in slide-in-from-top-2">
+                            <h5 className="text-white font-bold text-sm mb-4">Set Application Password</h5>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold uppercase">New Password</label>
+                                <input type="password" value={secInputNew} onChange={e => setSecInputNew(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500 transition-colors" />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold uppercase">Confirm Password</label>
+                                <input type="password" value={secInputConfirm} onChange={e => setSecInputConfirm(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500 transition-colors" />
+                              </div>
+                              {secError && <p className="text-red-500 text-xs font-bold">{secError}</p>}
+                              <div className="flex gap-3 pt-2">
+                                <button onClick={submitEnableProtection} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">ENABLE PROTECTION</button>
+                                <button onClick={resetSecurityForm} className="text-gray-500 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">CANCEL</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Disable Form */}
+                        {securityFormMode === 'disable' && (
+                          <div className="border-t border-gray-800 pt-6 animate-in slide-in-from-top-2">
+                            <h5 className="text-white font-bold text-sm mb-4">Disable Protection</h5>
+                            <div className="bg-red-900/10 border border-red-900/30 p-4 rounded-xl mb-4">
+                              <p className="text-red-400 text-xs">Warning: Disabling protection will decrypt your data file on the next save.</p>
+                            </div>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold uppercase">Current Password</label>
+                                <input type="password" value={secInputCurrent} onChange={e => setSecInputCurrent(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500 transition-colors" />
+                              </div>
+                              {secError && <p className="text-red-500 text-xs font-bold">{secError}</p>}
+                              <div className="flex gap-3 pt-2">
+                                <button onClick={submitDisableProtection} className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">DISABLE</button>
+                                <button onClick={resetSecurityForm} className="text-gray-500 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">CANCEL</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Change Password Form */}
+                        {securityFormMode === 'change' && (
+                          <div className="border-t border-gray-800 pt-6 animate-in slide-in-from-top-2">
+                            <h5 className="text-white font-bold text-sm mb-4">Change Password</h5>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold uppercase">Current Password</label>
+                                <input type="password" value={secInputCurrent} onChange={e => setSecInputCurrent(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500 transition-colors" />
+                              </div>
+                              <div className="border-t border-gray-800 my-2"></div>
+                              <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold uppercase">New Password</label>
+                                <input type="password" value={secInputNew} onChange={e => setSecInputNew(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500 transition-colors" />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs text-gray-500 font-bold uppercase">Confirm Password</label>
+                                <input type="password" value={secInputConfirm} onChange={e => setSecInputConfirm(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500 transition-colors" />
+                              </div>
+                              {secError && <p className="text-red-500 text-xs font-bold">{secError}</p>}
+                              <div className="flex gap-3 pt-2">
+                                <button onClick={submitChangePassword} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">UPDATE PASSWORD</button>
+                                <button onClick={resetSecurityForm} className="text-gray-500 hover:text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">CANCEL</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {isPasswordProtectionEnabled && securityFormMode === 'none' && (
+                          <div className="border-t border-gray-800 pt-6">
+                            <button
+                              onClick={() => setSecurityFormMode('change')}
+                              className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                            >
+                              CHANGE PASSWORD
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="mt-4 bg-blue-900/10 border border-blue-900/30 p-3 rounded-xl flex gap-3 items-start">
+                          <p className="text-blue-500 mt-0.5"><Lock size={14} /></p>
+                          <div>
+                            <p className="text-blue-300/70 text-[10px] leading-relaxed">
+                              This encrypts your data file on disk using AES-GCM.
+                              If you lose your password, your data is permanently unrecoverable.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
 
                 {/* --- APPEARANCE --- */}
                 {settingsActiveSection === 'Appearance' && (

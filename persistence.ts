@@ -12,6 +12,14 @@ import {
 
 // --- Persistence Types ---
 
+export interface EncryptedData {
+    isEncrypted: true;
+    version: number;
+    salt: string;    // Hex
+    iv: string;      // Hex
+    data: string;    // Hex (Ciphertext)
+}
+
 export type PersistenceStrategy = 'electron' | 'browser';
 
 // Extend Window interface
@@ -47,6 +55,8 @@ export interface AppData {
     currentTheme: string;
     colorMode: 'light' | 'dark' | 'midnight';
     userName?: string;
+    isPasswordProtectionEnabled?: boolean;
+    passwordHash?: string;
     appFontSize: 'sm' | 'base' | 'lg';
 
     // Data State - Time
@@ -125,8 +135,8 @@ export function getStrategy(): PersistenceStrategy {
     return window.electronAPI ? 'electron' : 'browser';
 }
 
-export async function saveToFile(handleOrPath: FileSystemFileHandle | string, data: AppData) {
-    const content = JSON.stringify(data, null, 2);
+export async function saveToFile(handleOrPath: FileSystemFileHandle | string, data: AppData | EncryptedData | string) {
+    const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
 
     if (typeof handleOrPath === 'string') {
         // Electron
@@ -173,19 +183,114 @@ export async function getOpenFileHandle(): Promise<FileSystemFileHandle | string
     return handles[0];
 }
 
-export async function readFile(handleOrPath: FileSystemFileHandle | string): Promise<AppData> {
+export async function readFile(handleOrPath: FileSystemFileHandle | string): Promise<AppData | EncryptedData> {
     if (typeof handleOrPath === 'string') {
         // Electron
         if (window.electronAPI) {
             const result = await window.electronAPI.readFile(handleOrPath);
             if (!result.success) throw new Error(result.error);
-            return JSON.parse(result.content!) as AppData;
+            return JSON.parse(result.content!);
         }
         throw new Error("Electron API missing");
     } else {
         // Browser
-        const file = await handleOrPath.getFile();
+        const validHandle = handleOrPath as FileSystemFileHandle;
+        const file = await validHandle.getFile();
         const text = await file.text();
-        return JSON.parse(text) as AppData;
+        return JSON.parse(text);
+    }
+}
+
+// --- Encryption Helpers ---
+
+const ENC_ALGO = { name: 'AES-GCM', length: 256 };
+const KDF_ALGO = { name: 'PBKDF2', hash: 'SHA-256' };
+
+function buffToHex(buffer: ArrayBuffer): string {
+    return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBuff(hex: string): ArrayBuffer {
+    const tokens = hex.match(/.{1,2}/g);
+    if (!tokens) return new ArrayBuffer(0);
+    return new Uint8Array(tokens.map(byte => parseInt(byte, 16))).buffer;
+}
+
+export async function deriveKey(password: string, saltHex: string | null = null): Promise<{ key: CryptoKey; salt: string }> {
+    const enc = new TextEncoder();
+
+    let salt: Uint8Array;
+    if (saltHex) {
+        const buffer = hexToBuff(saltHex);
+        // Ensure we have a valid buffer for the salt
+        if (buffer.byteLength === 0) {
+            salt = crypto.getRandomValues(new Uint8Array(16));
+        } else {
+            salt = new Uint8Array(buffer);
+        }
+    } else {
+        salt = crypto.getRandomValues(new Uint8Array(16));
+    }
+
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(password),
+        'PBKDF2',
+        false,
+        ['deriveKey']
+    );
+
+    const key = await crypto.subtle.deriveKey(
+        {
+            ...KDF_ALGO,
+            salt: salt as any,
+            iterations: 100000
+        },
+        keyMaterial,
+        ENC_ALGO,
+        false,
+        ['encrypt', 'decrypt']
+    );
+
+    return { key, salt: buffToHex(salt.buffer as ArrayBuffer) };
+}
+
+export async function encryptData(data: AppData, password: string): Promise<EncryptedData> {
+    const { key, salt } = await deriveKey(password);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const encodedData = enc.encode(JSON.stringify(data));
+
+    const encryptedContent = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: iv },
+        key,
+        encodedData
+    );
+
+    return {
+        isEncrypted: true,
+        version: 1,
+        salt: salt,
+        iv: buffToHex(iv.buffer),
+        data: buffToHex(encryptedContent)
+    };
+}
+
+export async function decryptData(encrypted: EncryptedData, password: string): Promise<AppData> {
+    try {
+        const { key } = await deriveKey(password, encrypted.salt);
+        const iv = hexToBuff(encrypted.iv);
+        const data = hexToBuff(encrypted.data);
+
+        const decryptedContent = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv: iv },
+            key,
+            data
+        );
+
+        const dec = new TextDecoder();
+        return JSON.parse(dec.decode(decryptedContent));
+    } catch (e) {
+        throw new Error("Decryption failed");
     }
 }
