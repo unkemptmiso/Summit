@@ -300,8 +300,9 @@ const App: React.FC = () => {
   const [isAddingIncome, setIsAddingIncome] = useState(false);
   const [newIncomeName, setNewIncomeName] = useState("");
   const [expandedIncomeHistoryIndex, setExpandedIncomeHistoryIndex] = useState<number | null>(null);
+  const [expandedYearlyHistoryIndex, setExpandedYearlyHistoryIndex] = useState<number | null>(null);
   const [isAddingYearlyRecord, setIsAddingYearlyRecord] = useState(false);
-  const [newYearlyRecord, setNewYearlyRecord] = useState<YearlyIncomeEntry>({ year: new Date().getFullYear() - 1, grossAmount: 0, netAmount: 0 });
+  const [newYearlyRecord, setNewYearlyRecord] = useState<YearlyIncomeEntry>({ year: new Date().getFullYear() - 1, grossAmount: 0, netAmount: 0, streams: [] });
   // toggle for income chart 'gross' or 'net'
   const [incomeChartMetric, setIncomeChartMetric] = useState<'gross' | 'net'>('net');
 
@@ -2494,15 +2495,72 @@ const App: React.FC = () => {
     setExpandedIncomeHistoryIndex(expandedIncomeHistoryIndex === index ? null : index);
   };
 
+  const addYearlyStream = () => {
+    setNewYearlyRecord(prev => ({
+      ...prev,
+      streams: [...(prev.streams || []), { id: Math.random().toString(36).substr(2, 9), name: '', grossAmount: 0, netAmount: 0 }]
+    }));
+  };
+
+  const removeYearlyStream = (id: string) => {
+    setNewYearlyRecord(prev => ({
+      ...prev,
+      streams: prev.streams?.filter(s => s.id !== id)
+    }));
+  };
+
+  const updateYearlyStream = (id: string, field: 'name' | 'grossAmount' | 'netAmount', value: any) => {
+    setNewYearlyRecord(prev => {
+      const updatedStreams = prev.streams?.map(s =>
+        s.id === id ? { ...s, [field]: value } : s
+      ) || [];
+
+      // Auto-calculate totals from streams
+      const totalGross = updatedStreams.reduce((acc, s) => acc + (parseFloat(s.grossAmount.toString()) || 0), 0);
+      const totalNet = updatedStreams.reduce((acc, s) => acc + (parseFloat(s.netAmount.toString()) || 0), 0);
+
+      return {
+        ...prev,
+        streams: updatedStreams,
+        grossAmount: totalGross,
+        netAmount: totalNet
+      };
+    });
+  };
+
   const handleAddYearlyRecord = () => {
     if (yearlyIncomeHistory.some(r => r.year === newYearlyRecord.year)) {
       setToast({ message: `Record for ${newYearlyRecord.year} already exists`, show: true });
       return;
     }
+
+    // Automatically add any new stream names to the current Income Manager
+    if (newYearlyRecord.streams && newYearlyRecord.streams.length > 0) {
+      setIncomeStreams(currentStreams => {
+        const existingNames = new Set(currentStreams.map(s => s.name.toLowerCase().trim()));
+        const streamsToRegister: IncomeStream[] = [];
+
+        newYearlyRecord.streams?.forEach(legacyStream => {
+          const name = legacyStream.name.trim();
+          if (name && !existingNames.has(name.toLowerCase())) {
+            streamsToRegister.push({
+              id: Math.random().toString(36).substr(2, 9),
+              name: name,
+              grossAmount: 0,
+              netAmount: 0
+            });
+            existingNames.add(name.toLowerCase());
+          }
+        });
+
+        return [...currentStreams, ...streamsToRegister];
+      });
+    }
+
     setYearlyIncomeHistory(prev => [...prev, newYearlyRecord].sort((a, b) => b.year - a.year));
     setIsAddingYearlyRecord(false);
-    setNewYearlyRecord({ year: new Date().getFullYear() - 1, grossAmount: 0, netAmount: 0 });
-    setToast({ message: "Yearly record added", show: true });
+    setNewYearlyRecord({ year: new Date().getFullYear() - 1, grossAmount: 0, netAmount: 0, streams: [] });
+    setToast({ message: "Yearly record saved. New categories added to Income Manager.", show: true });
   };
 
   const removeYearlyRecord = (year: number) => {
@@ -4830,102 +4888,6 @@ const App: React.FC = () => {
                       </table>
                     </div>
                   </div>
-
-                  <div className="mt-12 space-y-4">
-                    <div className="flex justify-between items-center px-2">
-                      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Yearly Income Records</h3>
-                      <button onClick={() => setIsAddingYearlyRecord(true)} className={`flex items-center space-x-1 text-xs font-bold ${theme.text} hover:opacity-80`}>
-                        <PlusCircle size={14} /><span>ADD YEARLY RECORD</span>
-                      </button>
-                    </div>
-
-                    {isAddingYearlyRecord && (
-                      <div className="bg-gray-900/80 p-6 rounded-2xl border border-gray-700 animate-in fade-in slide-in-from-top-4 shadow-2xl">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                          <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800/50">
-                            <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Year</label>
-                            <input
-                              type="number"
-                              value={newYearlyRecord.year}
-                              onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
-                              className="bg-transparent text-lg font-bold w-full outline-none text-gray-300 font-mono"
-                            />
-                          </div>
-                          <div className="bg-gray-900/50 p-3 rounded-xl border border-gray-800/50">
-                            <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Gross (Pre-Tax)</label>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-gray-500 text-sm">$</span>
-                              <input
-                                type="number"
-                                value={newYearlyRecord.grossAmount}
-                                onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, grossAmount: parseFloat(e.target.value) || 0 }))}
-                                className="bg-transparent text-lg font-bold w-full outline-none text-gray-300 font-mono"
-                                placeholder="0.00"
-                              />
-                            </div>
-                          </div>
-                          <div className="bg-emerald-900/10 p-3 rounded-xl border border-emerald-900/30">
-                            <label className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider mb-1 block">Net (Post-Tax)</label>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-emerald-600 text-sm">$</span>
-                              <input
-                                type="number"
-                                value={newYearlyRecord.netAmount}
-                                onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, netAmount: parseFloat(e.target.value) || 0 }))}
-                                className="bg-transparent text-xl font-bold w-full outline-none text-emerald-400 font-mono"
-                                placeholder="0.00"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-3 h-full pb-1">
-                            <button onClick={handleAddYearlyRecord} className="flex-1 px-6 py-3 bg-white text-black text-xs font-bold rounded-xl hover:bg-gray-200 shadow-lg">SAVE RECORD</button>
-                            <button onClick={() => setIsAddingYearlyRecord(false)} className="p-3 text-gray-500 hover:text-white rounded-xl hover:bg-gray-800"><Minus size={20} /></button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                            <th className="px-6 py-4">Year</th>
-                            <th className="px-6 py-4 text-right">Total Net</th>
-                            <th className="px-6 py-4 text-right">Total Gross</th>
-                            <th className="px-6 py-4 w-20"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-800/50">
-                          {yearlyIncomeHistory.map((h) => (
-                            <tr key={h.year} className="hover:bg-gray-800/20 group transition-colors">
-                              <td className="px-6 py-4 text-sm font-bold text-gray-300">
-                                {h.year}
-                              </td>
-                              <td className="px-6 py-4 text-right text-sm font-mono text-emerald-400 font-bold">
-                                ${h.netAmount.toLocaleString()}
-                              </td>
-                              <td className="px-6 py-4 text-right text-sm font-mono text-gray-400 font-bold">
-                                ${h.grossAmount.toLocaleString()}
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <button
-                                  onClick={() => removeYearlyRecord(h.year)}
-                                  className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                          {yearlyIncomeHistory.length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No previous year records entered.</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -5560,6 +5522,193 @@ const App: React.FC = () => {
                             </button>
                           </div>
                         ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-8 border-t border-gray-800">
+                      <div className="flex justify-between items-center mb-6">
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Legacy Income Records</h4>
+                          <p className="text-xs text-gray-500 mt-1">Manual entry for historical yearly income data.</p>
+                        </div>
+                        <button onClick={() => setIsAddingYearlyRecord(true)} className={`flex items-center space-x-1 text-xs font-bold ${theme.text} hover:opacity-80`}>
+                          <PlusCircle size={14} /><span>ADD YEARLY RECORD</span>
+                        </button>
+                      </div>
+
+                      {isAddingYearlyRecord && (
+                        <div className="bg-gray-900/80 p-6 rounded-2xl border border-gray-700 animate-in fade-in slide-in-from-top-4 shadow-2xl mb-8 space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-800/50">
+                              <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Year</label>
+                              <input
+                                type="number"
+                                value={newYearlyRecord.year}
+                                onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
+                                className="bg-transparent text-xl font-bold w-full outline-none text-gray-300 font-mono"
+                              />
+                            </div>
+                            <div className="bg-gray-900/50 p-4 rounded-xl border border-gray-800/50">
+                              <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Total Gross</label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-gray-500 text-lg">$</span>
+                                <input
+                                  type="number"
+                                  value={newYearlyRecord.grossAmount}
+                                  onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, grossAmount: parseFloat(e.target.value) || 0 }))}
+                                  className={`bg-transparent text-xl font-bold w-full outline-none font-mono ${newYearlyRecord.streams && newYearlyRecord.streams.length > 0 ? 'text-gray-500' : 'text-gray-300'}`}
+                                  placeholder="0.00"
+                                  disabled={newYearlyRecord.streams && newYearlyRecord.streams.length > 0}
+                                />
+                              </div>
+                            </div>
+                            <div className="bg-emerald-900/10 p-4 rounded-xl border border-emerald-900/30">
+                              <label className="text-[10px] text-emerald-600 uppercase font-bold tracking-wider mb-1 block">Total Net</label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-emerald-600 text-lg">$</span>
+                                <input
+                                  type="number"
+                                  value={newYearlyRecord.netAmount}
+                                  onChange={(e) => setNewYearlyRecord(prev => ({ ...prev, netAmount: parseFloat(e.target.value) || 0 }))}
+                                  className={`bg-transparent text-2xl font-bold w-full outline-none font-mono ${newYearlyRecord.streams && newYearlyRecord.streams.length > 0 ? 'text-emerald-700' : 'text-emerald-400'}`}
+                                  placeholder="0.00"
+                                  disabled={newYearlyRecord.streams && newYearlyRecord.streams.length > 0}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-center px-1">
+                              <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Individual Streams (Optional)</h5>
+                              <button onClick={addYearlyStream} className={`flex items-center space-x-1 text-[10px] font-bold ${theme.text} hover:opacity-80`}>
+                                <Plus size={12} /><span>ADD STREAM</span>
+                              </button>
+                            </div>
+
+                            <div className="space-y-3">
+                              {newYearlyRecord.streams?.map((s) => (
+                                <div key={s.id} className="bg-gray-950/40 p-4 rounded-xl border border-gray-800 grid grid-cols-1 md:grid-cols-4 gap-6 items-end animate-in fade-in slide-in-from-top-2">
+                                  <div className="md:col-span-1">
+                                    <label className="text-[8px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Stream Name</label>
+                                    <input
+                                      type="text"
+                                      value={s.name}
+                                      onChange={(e) => updateYearlyStream(s.id, 'name', e.target.value)}
+                                      className="bg-transparent border-b border-gray-700 w-full outline-none text-gray-300 text-sm pb-1 focus:border-gray-500 transition-colors"
+                                      placeholder="e.g. Salary, Business..."
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[8px] text-gray-500 uppercase font-bold tracking-wider mb-1 block">Gross</label>
+                                    <input
+                                      type="number"
+                                      value={s.grossAmount}
+                                      onChange={(e) => updateYearlyStream(s.id, 'grossAmount', e.target.value)}
+                                      className="bg-transparent border-b border-gray-700 w-full outline-none text-gray-300 text-sm font-mono pb-1 focus:border-gray-500 transition-colors"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[8px] text-emerald-600 uppercase font-bold tracking-wider mb-1 block">Net</label>
+                                    <input
+                                      type="number"
+                                      value={s.netAmount}
+                                      onChange={(e) => updateYearlyStream(s.id, 'netAmount', e.target.value)}
+                                      className="bg-transparent border-b border-gray-700 w-full outline-none text-emerald-400 text-sm font-mono pb-1 focus:border-gray-500 transition-colors"
+                                    />
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <button onClick={() => removeYearlyStream(s.id)} className="p-2 text-gray-600 hover:text-red-500 transition-colors">
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                              {(!newYearlyRecord.streams || newYearlyRecord.streams.length === 0) && (
+                                <div className="text-center py-6 border border-dashed border-gray-800 rounded-xl">
+                                  <p className="text-[10px] text-gray-600 italic">No individual streams added. Use fields above for a quick total entry.</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-800">
+                            <button onClick={() => setIsAddingYearlyRecord(false)} className="px-6 py-3 text-gray-500 hover:text-white text-xs font-bold transition-colors">CANCEL</button>
+                            <button onClick={handleAddYearlyRecord} className="px-10 py-3 bg-white text-black text-xs font-bold rounded-xl hover:bg-gray-200 shadow-lg transition-all transform hover:scale-[1.02]">SAVE YEARLY RECORD</button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="bg-[#0d0d0d] rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
+                              <th className="px-6 py-4 w-40">Year</th>
+                              <th className="px-6 py-4 text-right">Total Net</th>
+                              <th className="px-6 py-4 text-right">Total Gross</th>
+                              <th className="px-6 py-4 w-20"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-800/50">
+                            {yearlyIncomeHistory.map((h, idx) => (
+                              <React.Fragment key={h.year}>
+                                <tr
+                                  className={`hover:bg-gray-800/20 group transition-colors cursor-pointer ${expandedYearlyHistoryIndex === idx ? 'bg-gray-800/10' : ''}`}
+                                  onClick={() => setExpandedYearlyHistoryIndex(expandedYearlyHistoryIndex === idx ? null : idx)}
+                                >
+                                  <td className="px-6 py-4 text-sm font-bold text-gray-300 flex items-center gap-2">
+                                    {h.streams && h.streams.length > 0 ? (
+                                      expandedYearlyHistoryIndex === idx ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />
+                                    ) : <div className="w-3.5" />}
+                                    {h.year}
+                                  </td>
+                                  <td className="px-6 py-4 text-right text-sm font-mono text-emerald-400 font-bold">
+                                    ${h.netAmount.toLocaleString()}
+                                  </td>
+                                  <td className="px-6 py-4 text-right text-sm font-mono text-gray-400 font-bold">
+                                    ${h.grossAmount.toLocaleString()}
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); removeYearlyRecord(h.year); }}
+                                      className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </td>
+                                </tr>
+                                {expandedYearlyHistoryIndex === idx && h.streams && h.streams.length > 0 && (
+                                  <tr className="bg-gray-950/30">
+                                    <td colSpan={4} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6 border-l-2 border-gray-800">
+                                        {h.streams.map(s => (
+                                          <div key={s.id} className="bg-gray-900/30 p-4 rounded-xl border border-gray-800/50 space-y-2">
+                                            <div className="flex justify-between items-start mb-2">
+                                              <span className="text-sm font-bold text-white">{s.name || 'Unnamed Stream'}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                              <span className="text-gray-500">Gross:</span>
+                                              <span className="font-mono text-gray-300">${(parseFloat(s.grossAmount.toString()) || 0).toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs">
+                                              <span className="text-emerald-700">Net:</span>
+                                              <span className="font-mono text-emerald-500">${(parseFloat(s.netAmount.toString()) || 0).toLocaleString()}</span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            ))}
+                            {yearlyIncomeHistory.length === 0 && (
+                              <tr>
+                                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 italic">No previous year records entered.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>

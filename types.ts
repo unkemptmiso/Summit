@@ -64,6 +64,7 @@ export interface YearlyIncomeEntry {
   year: number;
   grossAmount: number;
   netAmount: number;
+  streams?: IncomeStream[];
 }
 
 export interface DrivingLogEntry {
