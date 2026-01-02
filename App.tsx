@@ -9,6 +9,7 @@ import {
   Car,
   Settings,
   Plus,
+  User,
   ChevronRight,
   ChevronLeft,
   Trash2,
@@ -374,6 +375,7 @@ const App: React.FC = () => {
   const [receiptsDir, setReceiptsDir] = useState<string>('');
   const [businessReceiptsDir, setBusinessReceiptsDir] = useState<string>('');
   const [colorMode, setColorMode] = useState<'light' | 'dark' | 'midnight'>('dark');
+  const [userName, setUserName] = useState<string>('');
 
   // Electron Auto-Load Effect
   useEffect(() => {
@@ -421,7 +423,8 @@ const App: React.FC = () => {
     hiddenDashboardWidgets,
     receiptsDir,
     businessReceiptsDir,
-    colorMode
+    colorMode,
+    userName
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -439,7 +442,8 @@ const App: React.FC = () => {
     hiddenDashboardWidgets,
     receiptsDir,
     businessReceiptsDir,
-    colorMode
+    colorMode,
+    userName
   ]);
 
 
@@ -496,6 +500,7 @@ const App: React.FC = () => {
     if (data.receiptsDir) setReceiptsDir(data.receiptsDir);
     if (data.businessReceiptsDir) setBusinessReceiptsDir(data.businessReceiptsDir);
     if (data.colorMode) setColorMode(data.colorMode);
+    if (data.userName) setUserName(data.userName);
 
     setToast({ message: "Data loaded successfully", show: true });
   };
@@ -3611,7 +3616,30 @@ const App: React.FC = () => {
           {activeTab !== 'settings' && activeTab !== 'scratchpad' && (
             <header className="sticky top-0 z-20 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-gray-800 p-6 flex justify-between items-center">
               <div className="flex items-center space-x-4">
-                {activeTab === 'mileage' ? (
+                {activeTab === 'dashboard' ? (
+                  <div className="flex flex-col">
+                    <h2 className="text-2xl font-bold text-white tracking-tight leading-none bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                      {(() => {
+                        const hour = new Date().getHours();
+                        const greetings = ["Nice to see you", "Welcome back", "Hello"];
+                        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+                        let timeGreeting = "Welcome";
+                        if (hour < 12) timeGreeting = "Good Morning";
+                        else if (hour < 18) timeGreeting = "Good Afternoon";
+                        else timeGreeting = "Good Evening";
+
+                        // Use a mix of time-based and general greetings
+                        const selectedGreeting = Math.random() > 0.5 ? timeGreeting : randomGreeting;
+
+                        return userName ? `${selectedGreeting}, ${userName}` : `${selectedGreeting}`;
+                      })()}
+                    </h2>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
+                      Today is {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                ) : activeTab === 'mileage' ? (
                   <>
                     <button onClick={() => setCurrentYear(y => y - 1)} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
                       <ChevronLeft size={20} />
@@ -5360,6 +5388,21 @@ const App: React.FC = () => {
                             <span className={`text-xs font-bold uppercase tracking-wider ${currentTheme === key ? 'text-white' : 'text-gray-500'}`}>{t.name}</span>
                           </button>
                         ))}
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-800 pt-10">
+                      <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><User size={20} className="text-gray-400" /> Personalization</h3>
+                      <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Display Name</label>
+                        <input
+                          type="text"
+                          placeholder="Your name..."
+                          className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors uppercase font-bold tracking-tight`}
+                          value={userName}
+                          onChange={e => setUserName(e.target.value)}
+                        />
+                        <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-wide font-medium italic">* This name will appear on your Dashboard greeting.</p>
                       </div>
                     </div>
 
