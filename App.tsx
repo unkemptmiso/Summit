@@ -104,9 +104,9 @@ const INITIAL_DRIVING_PURPOSES = [
 ];
 
 const INITIAL_INCOME_STREAMS: IncomeStream[] = [
-  { id: '1', name: 'W-2 (Main Job)', grossAmount: 0, netAmount: 0 },
-  { id: '2', name: 'LLC Income', grossAmount: 0, netAmount: 0 },
-  { id: '3', name: 'Investment Income', grossAmount: 0, netAmount: 0 }
+  { id: '1', name: 'W-2 (Main Job)', grossAmount: 0, netAmount: 0, isBusiness: false },
+  { id: '2', name: 'LLC Income', grossAmount: 0, netAmount: 0, isBusiness: true },
+  { id: '3', name: 'Investment Income', grossAmount: 0, netAmount: 0, isBusiness: false }
 ];
 
 const INITIAL_ASSET_STRUCTURE: AssetCategory[] = [
@@ -3506,8 +3506,14 @@ const App: React.FC = () => {
                       const currentMonthBusinessIncome = (() => {
                         const sortKey = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}`;
                         const historyEntry = incomeHistory.find(h => h.sortKey === sortKey);
-                        if (historyEntry) return historyEntry.totalNet;
-                        return incomeStreams.reduce((acc, s) => acc + (parseFloat(s.netAmount.toString()) || 0), 0);
+                        if (historyEntry) {
+                          return historyEntry.streams
+                            .filter(s => s.isBusiness)
+                            .reduce((sum, s) => sum + (parseFloat(s.netAmount.toString()) || 0), 0);
+                        }
+                        return incomeStreams
+                          .filter(s => s.isBusiness)
+                          .reduce((acc, s) => acc + (parseFloat(s.netAmount.toString()) || 0), 0);
                       })();
 
                       const ytdBusinessIncome = incomeHistory
@@ -3515,7 +3521,12 @@ const App: React.FC = () => {
                           const [y] = h.sortKey.split('-');
                           return parseInt(y) === currentYear;
                         })
-                        .reduce((sum, h) => sum + h.totalNet, 0);
+                        .reduce((sum, h) => {
+                          const monthBusinessNet = h.streams
+                            .filter(s => s.isBusiness)
+                            .reduce((sSum, s) => sSum + (parseFloat(s.netAmount.toString()) || 0), 0);
+                          return sum + monthBusinessNet;
+                        }, 0);
 
                       // Calculate business expenses
                       const currentMonthExpenses = currentMonthBusinessData.reduce((sum, t) => sum + (parseFloat(t.amount.toString()) || 0), 0);
@@ -5499,11 +5510,38 @@ const App: React.FC = () => {
                   )}
 
                   {/* --- OTHER SECTIONS PLACEHOLDERS --- */}
-                  {['Income Manager'].includes(settingsActiveSection) && (
-                    <div className="flex flex-col items-center justify-center h-64 text-center opacity-50 animate-in fade-in zoom-in-95 duration-500">
-                      <Settings size={48} className="mb-4 text-gray-600" />
-                      <h3 className="text-xl font-bold text-white">Coming Soon</h3>
-                      <p className="text-gray-500 mt-2 max-w-xs">Specific settings for {settingsActiveSection} will be available in a future update.</p>
+                  {settingsActiveSection === 'Income Manager' && (
+                    <div className="max-w-xl animate-in slide-in-from-right-4 duration-300 space-y-8">
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">P&L Calculation Settings</h4>
+                        <p className="text-sm text-gray-500 mb-6">Select which income streams should contribute to your Business P&L Summary widget on the dashboard.</p>
+
+                        <div className="space-y-3">
+                          {incomeStreams.map(stream => (
+                            <div
+                              key={stream.id}
+                              className="bg-gray-900/30 border border-gray-800 rounded-2xl p-5 flex justify-between items-center hover:bg-gray-900/50 transition-all border-l-4"
+                              style={{ borderLeftColor: stream.isBusiness ? '#d500f9' : '#374151' }}
+                            >
+                              <div>
+                                <h5 className="font-bold text-white">{stream.name}</h5>
+                                <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">
+                                  {stream.isBusiness ? 'Contributing to Business P&L' : 'Excluded from Business P&L'}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => setIncomeStreams(prev => prev.map(s => s.id === stream.id ? { ...s, isBusiness: !s.isBusiness } : s))}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all border ${stream.isBusiness
+                                    ? 'bg-purple-900/20 border-purple-500/50 text-purple-400'
+                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                                  }`}
+                              >
+                                {stream.isBusiness ? 'BUSINESS STREAM' : 'PERSONAL STREAM'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
 

@@ -37,6 +37,7 @@ export interface IncomeStream {
   name: string;
   grossAmount: number | string;
   netAmount: number | string;
+  isBusiness?: boolean;
 }
 
 export interface MonthlyHistoryEntry {
