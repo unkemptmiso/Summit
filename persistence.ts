@@ -26,6 +26,7 @@ declare global {
             showOpenDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
             ensureDir: (path: string) => Promise<{ success: boolean; error?: string }>;
             saveReceipt: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
+            showDirectoryDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
         };
     }
 }
@@ -96,6 +97,10 @@ export interface AppData {
 
     // Scratch Pad
     scratchPadUrl?: string;
+
+    // Receipt Directories
+    receiptsDir?: string;
+    businessReceiptsDir?: string;
 }
 
 // --- Electron Types ---

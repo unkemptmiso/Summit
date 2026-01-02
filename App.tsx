@@ -41,8 +41,10 @@ import {
   FileJson,
   Save as SaveIcon,
   FolderOpen,
+  Folder,
   Calculator
 } from 'lucide-react';
+
 import {
   Transaction,
   AssetCategory,
@@ -365,6 +367,8 @@ const App: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error' | null>(null);
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
+  const [receiptsDir, setReceiptsDir] = useState<string>('');
+  const [businessReceiptsDir, setBusinessReceiptsDir] = useState<string>('');
 
   // Electron Auto-Load Effect
   useEffect(() => {
@@ -409,7 +413,9 @@ const App: React.FC = () => {
     customColors,
     hiddenTabs,
     dashboardOrder,
-    hiddenDashboardWidgets
+    hiddenDashboardWidgets,
+    receiptsDir,
+    businessReceiptsDir
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -424,7 +430,9 @@ const App: React.FC = () => {
     customColors,
     hiddenTabs,
     dashboardOrder,
-    hiddenDashboardWidgets
+    hiddenDashboardWidgets,
+    receiptsDir,
+    businessReceiptsDir
   ]);
 
   const loadData = (data: AppData) => {
@@ -477,6 +485,8 @@ const App: React.FC = () => {
     // Dashboard Customization
     if (data.dashboardOrder) setDashboardOrder(data.dashboardOrder);
     if (data.hiddenDashboardWidgets) setHiddenDashboardWidgets(data.hiddenDashboardWidgets);
+    if (data.receiptsDir) setReceiptsDir(data.receiptsDir);
+    if (data.businessReceiptsDir) setBusinessReceiptsDir(data.businessReceiptsDir);
 
     setToast({ message: "Data loaded successfully", show: true });
   };
@@ -1602,13 +1612,16 @@ const App: React.FC = () => {
     setIsAddingSettingsItem(false);
   };
 
-  const handleReceiptUpload = async (file: File, transactionId: number | string) => {
+  const handleReceiptUpload = async (file: File, transactionId: number | string, isBusiness: boolean = true) => {
     if (!window.electronAPI) {
       alert("Receipt upload is only available in the Electron app.");
       return;
     }
 
-    const transaction = businessTransactions.find(t => t.id === transactionId);
+    const transaction = isBusiness
+      ? businessTransactions.find(t => t.id === transactionId)
+      : transactions.find(t => t.id === transactionId);
+
     if (!transaction) return;
 
     try {
@@ -1628,19 +1641,70 @@ const App: React.FC = () => {
       const filename = `${formattedDate} - ${description} - ${amount}.${ext}`;
 
       // Folder and Save
-      const folderName = `${currentYear} - Business Expense`;
-      await window.electronAPI.ensureDir(folderName);
+      let folderPath = isBusiness
+        ? (businessReceiptsDir || `${currentYear} - Business Expense`)
+        : (receiptsDir || "Spending Receipts");
+
+      await window.electronAPI.ensureDir(folderPath);
 
       const buffer = await file.arrayBuffer();
-      const filePath = `${folderName}/${filename}`;
+      const filePath = `${folderPath}/${filename}`;
       await window.electronAPI.saveReceipt(filePath, buffer);
 
       // Update Transaction
-      updateBusinessTransaction(transactionId, 'receiptPath', filePath);
+      if (isBusiness) {
+        updateBusinessTransaction(transactionId, 'receiptPath', filePath);
+      } else {
+        updateTransaction(transactionId, 'receiptPath', filePath);
+      }
 
     } catch (error) {
       console.error("Failed to upload receipt:", error);
       alert("Failed to upload receipt.");
+    }
+  };
+
+  const handleSelectReceiptDir = async () => {
+    console.log("handleSelectReceiptDir triggered");
+    if (!window.electronAPI) {
+      alert("This feature is only available in the Desktop App.");
+      return;
+    }
+    if (typeof window.electronAPI.showDirectoryDialog !== 'function') {
+      alert("Directory picker not found. Please restart the application to apply the latest update.");
+      return;
+    }
+    try {
+      const result = await window.electronAPI.showDirectoryDialog();
+      console.log("Directory picker result:", result);
+      if (!result.canceled && result.filePaths.length > 0) {
+        setReceiptsDir(result.filePaths[0]);
+      }
+    } catch (err) {
+      console.error("Failed to open directory picker:", err);
+      alert("Error opening folder picker: " + (err as Error).message);
+    }
+  };
+
+  const handleSelectBusinessReceiptDir = async () => {
+    console.log("handleSelectBusinessReceiptDir triggered");
+    if (!window.electronAPI) {
+      alert("This feature is only available in the Desktop App.");
+      return;
+    }
+    if (typeof window.electronAPI.showDirectoryDialog !== 'function') {
+      alert("Directory picker not found. Please restart the application to apply the latest update.");
+      return;
+    }
+    try {
+      const result = await window.electronAPI.showDirectoryDialog();
+      console.log("Directory picker result:", result);
+      if (!result.canceled && result.filePaths.length > 0) {
+        setBusinessReceiptsDir(result.filePaths[0]);
+      }
+    } catch (err) {
+      console.error("Failed to open directory picker:", err);
+      alert("Error opening folder picker: " + (err as Error).message);
     }
   };
 
@@ -3782,6 +3846,7 @@ const App: React.FC = () => {
                             <th className="px-4 py-3 w-32 text-right">Amount</th>
                             <th className="px-4 py-3 w-48">Category</th>
                             <th className="px-4 py-3 w-40">Method</th>
+                            <th className="px-4 py-3 w-32 text-center">Receipt</th>
                             <th className="px-4 py-3 w-12 text-center"></th>
                           </tr>
                         </thead>
@@ -3814,6 +3879,41 @@ const App: React.FC = () => {
                                   <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateTransaction(t.id, 'method', e.target.value)}>
                                     {paymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
                                   </select>
+                                </td>
+                                <td
+                                  className="p-0 border-r border-gray-800/20 relative group/cell"
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    const file = e.dataTransfer.files[0];
+                                    if (file) handleReceiptUpload(file, t.id, false);
+                                  }}
+                                  onPaste={(e) => {
+                                    const file = e.clipboardData.files[0];
+                                    if (file) handleReceiptUpload(file, t.id, false);
+                                  }}
+                                >
+                                  {t.receiptPath ? (
+                                    <div className="flex items-center justify-center h-11 w-full px-2" title={t.receiptPath}>
+                                      <div className="flex items-center space-x-1 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/50 cursor-pointer" onClick={() => {/* Open file if possible */ }}>
+                                        <Receipt size={12} className="text-blue-400" />
+                                        <span className="text-[10px] text-blue-300 truncate max-w-[80px]">{t.receiptPath.split('/').pop()}</span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateTransaction(t.id, 'receiptPath', '');
+                                          }}
+                                          className="hover:text-red-400 text-blue-900 ml-1"
+                                        >
+                                          <X size={10} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
+                                      <span className="hidden group-hover/cell:inline">Drag / Paste</span>
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-0 text-center">
                                   <button onClick={() => setTransactions(transactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
@@ -5249,6 +5349,22 @@ const App: React.FC = () => {
                       </div>
                       <ChevronRight className="text-gray-600 group-hover:text-white" />
                     </div>
+
+                    <div
+                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                      onClick={handleSelectReceiptDir}
+                    >
+                      <div className="flex-1">
+                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Folder size={18} /> Receipt Save Directory</h4>
+                        <p className="text-sm text-gray-500 mt-1 truncate max-w-md">{receiptsDir || "Spending Receipts (Default)"}</p>
+                      </div>
+                      <button
+                        className="ml-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-bold rounded-lg border border-gray-700 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleSelectReceiptDir(); }}
+                      >
+                        SELECT FOLDER
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -5294,6 +5410,22 @@ const App: React.FC = () => {
                       </div>
                       <ChevronRight className="text-gray-600 group-hover:text-white" />
                     </div>
+
+                    <div
+                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
+                      onClick={handleSelectBusinessReceiptDir}
+                    >
+                      <div className="flex-1">
+                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Folder size={18} /> Receipt Save Directory</h4>
+                        <p className="text-sm text-gray-500 mt-1 truncate max-w-md">{businessReceiptsDir || `${currentYear} - Business Expense (Default)`}</p>
+                      </div>
+                      <button
+                        className="ml-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-bold rounded-lg border border-gray-700 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); handleSelectBusinessReceiptDir(); }}
+                      >
+                        SELECT FOLDER
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -5313,7 +5445,7 @@ const App: React.FC = () => {
                         <h3 className="text-xl font-bold text-white">
                           {settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? 'Business Categories' : 'Expense Categories') :
                             settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? 'Business Payment Methods' : 'Payment Methods') :
-                              settingsSubSection === 'colors' ? 'Category Colors' :
+                              settingsSubSection === 'colors' ? (settingsActiveSection === 'Business Center' ? 'Business Category Colors' : 'Expense Category Colors') :
                                 'Trip Purposes'}
                         </h3>
                         {settingsSubSection !== 'colors' && (

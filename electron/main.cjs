@@ -102,3 +102,21 @@ ipcMain.handle('show-open-dialog', async () => {
     });
     return result;
 });
+
+ipcMain.handle('show-directory-dialog', async (event) => {
+    console.log('IPC: show-directory-dialog called');
+    try {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        const result = await dialog.showOpenDialog(win, {
+            properties: ['openDirectory'],
+            title: 'Select Receipt Folder'
+        });
+        console.log('IPC: show-directory-dialog result:', result);
+        return result;
+    } catch (error) {
+        console.error('IPC: show-directory-dialog error:', error);
+        throw error;
+    }
+});
+
+
