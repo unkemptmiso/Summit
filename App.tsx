@@ -3617,8 +3617,8 @@ const App: React.FC = () => {
             <header className="sticky top-0 z-20 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-gray-800 p-6 flex justify-between items-center">
               <div className="flex items-center space-x-4">
                 {activeTab === 'dashboard' ? (
-                  <div className="flex flex-col">
-                    <h2 className="text-2xl font-bold text-white tracking-tight leading-none bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                  <div className="flex flex-col items-start">
+                    <h2 className="text-2xl font-bold text-white tracking-tight py-1 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
                       {(() => {
                         const hour = new Date().getHours();
                         const greetings = ["Nice to see you", "Welcome back", "Hello"];
@@ -3629,13 +3629,11 @@ const App: React.FC = () => {
                         else if (hour < 18) timeGreeting = "Good Afternoon";
                         else timeGreeting = "Good Evening";
 
-                        // Use a mix of time-based and general greetings
                         const selectedGreeting = Math.random() > 0.5 ? timeGreeting : randomGreeting;
-
                         return userName ? `${selectedGreeting}, ${userName}` : `${selectedGreeting}`;
                       })()}
                     </h2>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-2 flex items-center gap-2">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-1 text-left">
                       Today is {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     </p>
                   </div>
@@ -5398,7 +5396,7 @@ const App: React.FC = () => {
                         <input
                           type="text"
                           placeholder="Your name..."
-                          className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors uppercase font-bold tracking-tight`}
+                          className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors font-bold tracking-tight`}
                           value={userName}
                           onChange={e => setUserName(e.target.value)}
                         />
