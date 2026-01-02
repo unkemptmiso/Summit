@@ -74,6 +74,7 @@ export interface DrivingLogEntry {
   purpose: string;
 }
 
+
 export interface CategoryStat {
   name: string;
   total: number;

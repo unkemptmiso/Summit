@@ -93,6 +93,9 @@ export interface AppData {
     // Dashboard Customization
     dashboardOrder?: string[];
     hiddenDashboardWidgets?: string[];
+
+    // Scratch Pad
+    scratchPadUrl?: string;
 }
 
 // --- Electron Types ---
