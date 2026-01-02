@@ -11,6 +11,7 @@ import {
   Plus,
   User,
   Lock,
+  Unlock,
   ChevronRight,
   ChevronLeft,
   Trash2,
@@ -399,6 +400,43 @@ const App: React.FC = () => {
   const [lockError, setLockError] = useState<boolean>(false);
   const [pendingEncryptedData, setPendingEncryptedData] = useState<EncryptedData | null>(null);
   const [sessionPassword, setSessionPassword] = useState<string | null>(null);
+  // --- Greeting State ---
+  const [greeting, setGreeting] = useState("");
+  const [greetingOpacity, setGreetingOpacity] = useState(1);
+
+  useEffect(() => {
+    const getGreetingText = (name: string) => {
+      const hour = new Date().getHours();
+      const greetings = ["Nice to see you", "Welcome back", "Hello", "Great to have you here", "Ready to summit?"];
+      const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+      let timeGreeting = "Welcome";
+      if (hour < 12) timeGreeting = "Good Morning";
+      else if (hour < 18) timeGreeting = "Good Afternoon";
+      else timeGreeting = "Good Evening";
+
+      // 50/50 chance of time-based vs random
+      const selectedGreeting = Math.random() > 0.5 ? timeGreeting : randomGreeting;
+      return name ? `${selectedGreeting}, ${name}` : `${selectedGreeting}`;
+    };
+
+    // Initial set
+    setGreeting(getGreetingText(userName));
+
+    const interval = setInterval(() => {
+      // Fade out
+      setGreetingOpacity(0);
+
+      setTimeout(() => {
+        // Change text and Fade in
+        setGreeting(getGreetingText(userName));
+        setGreetingOpacity(1);
+      }, 500); // 500ms fade out duration matches CSS transition
+
+    }, 60000); // 60s
+
+    return () => clearInterval(interval);
+  }, [userName]);
 
   // Security UI State
   const [securityFormMode, setSecurityFormMode] = useState<'none' | 'enable' | 'disable' | 'change'>('none');
@@ -3735,6 +3773,17 @@ const App: React.FC = () => {
 
   return (
     <>
+      <style>{`
+        @keyframes shine {
+          to {
+            background-position: 200% center;
+          }
+        }
+        .animate-shine {
+          background-size: 200% auto;
+          animation: shine 4s linear infinite;
+        }
+      `}</style>
       <style>{modeStyles}</style>
 
       {/* Lock Screen Overlay */}
@@ -3743,12 +3792,12 @@ const App: React.FC = () => {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-xl"></div>
           <div className="relative z-10 w-full max-w-md p-8 bg-gray-900/50 border border-gray-800 rounded-3xl shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="flex flex-col items-center text-center space-y-6">
-              <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/40 mb-2">
-                <Lock size={32} className="text-white" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight">Welcome Back</h2>
-                <p className="text-gray-400 text-sm mt-1">Enter your password to access Summit.</p>
+              <div className="flex flex-col items-center space-y-4">
+                <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-900/50">
+                  <Mountain size={40} className="text-white" />
+                </div>
+                <h1 className="text-4xl font-bold tracking-tight text-white">Summit</h1>
+                <p className="text-gray-400 text-sm font-medium">Enter your password to access your vault.</p>
               </div>
 
               <div className="w-full space-y-4">
@@ -3760,7 +3809,7 @@ const App: React.FC = () => {
                     value={inputPassword}
                     onChange={(e) => { setInputPassword(e.target.value); setLockError(false); }}
                     onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-                    className={`w-full bg-gray-950/50 border ${lockError ? 'border-red-500' : 'border-gray-700'} rounded-xl px-4 py-3 outline-none focus:border-blue-500 transition-all text-center text-lg tracking-widest placeholder-gray-600`}
+                    className={`w-full bg-gray-950/50 border ${lockError ? 'border-red-500' : 'border-gray-700'} rounded-2xl px-4 py-4 outline-none focus:border-blue-500 transition-all text-center text-lg tracking-widest placeholder-gray-600`}
                   />
                 </div>
 
@@ -3770,9 +3819,9 @@ const App: React.FC = () => {
 
                 <button
                   onClick={handleUnlock}
-                  className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors shadow-lg"
+                  className="w-full bg-white text-black font-bold py-4 rounded-2xl hover:bg-gray-200 transition-colors shadow-lg flex items-center justify-center group"
                 >
-                  UNLOCK
+                  <Unlock size={24} className="group-hover:scale-110 transition-transform" />
                 </button>
               </div>
             </div>
@@ -3851,20 +3900,11 @@ const App: React.FC = () => {
               <div className="flex items-center space-x-4">
                 {activeTab === 'dashboard' ? (
                   <div className="flex flex-col items-start">
-                    <h2 className="text-2xl font-bold text-white tracking-tight py-1 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                      {(() => {
-                        const hour = new Date().getHours();
-                        const greetings = ["Nice to see you", "Welcome back", "Hello"];
-                        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-
-                        let timeGreeting = "Welcome";
-                        if (hour < 12) timeGreeting = "Good Morning";
-                        else if (hour < 18) timeGreeting = "Good Afternoon";
-                        else timeGreeting = "Good Evening";
-
-                        const selectedGreeting = Math.random() > 0.5 ? timeGreeting : randomGreeting;
-                        return userName ? `${selectedGreeting}, ${userName}` : `${selectedGreeting}`;
-                      })()}
+                    <h2
+                      className="text-2xl font-bold tracking-tight py-1 bg-gradient-to-r from-white via-gray-400 to-white bg-clip-text text-transparent transition-opacity duration-500 animate-shine"
+                      style={{ opacity: greetingOpacity }}
+                    >
+                      {greeting}
                     </h2>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-1 text-left">
                       Today is {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
