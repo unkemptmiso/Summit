@@ -42,8 +42,12 @@ import {
   Save as SaveIcon,
   FolderOpen,
   Folder,
-  Calculator
+  Calculator,
+  Sun,
+  Moon,
+  Sparkles
 } from 'lucide-react';
+
 
 import {
   Transaction,
@@ -369,6 +373,7 @@ const App: React.FC = () => {
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
   const [receiptsDir, setReceiptsDir] = useState<string>('');
   const [businessReceiptsDir, setBusinessReceiptsDir] = useState<string>('');
+  const [colorMode, setColorMode] = useState<'light' | 'dark' | 'midnight'>('dark');
 
   // Electron Auto-Load Effect
   useEffect(() => {
@@ -415,7 +420,8 @@ const App: React.FC = () => {
     dashboardOrder,
     hiddenDashboardWidgets,
     receiptsDir,
-    businessReceiptsDir
+    businessReceiptsDir,
+    colorMode
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -432,8 +438,10 @@ const App: React.FC = () => {
     dashboardOrder,
     hiddenDashboardWidgets,
     receiptsDir,
-    businessReceiptsDir
+    businessReceiptsDir,
+    colorMode
   ]);
+
 
   const loadData = (data: AppData) => {
     // UI
@@ -487,6 +495,7 @@ const App: React.FC = () => {
     if (data.hiddenDashboardWidgets) setHiddenDashboardWidgets(data.hiddenDashboardWidgets);
     if (data.receiptsDir) setReceiptsDir(data.receiptsDir);
     if (data.businessReceiptsDir) setBusinessReceiptsDir(data.businessReceiptsDir);
+    if (data.colorMode) setColorMode(data.colorMode);
 
     setToast({ message: "Data loaded successfully", show: true });
   };
@@ -2692,7 +2701,7 @@ const App: React.FC = () => {
             </path>
           );
         })}
-        <circle cx="0" cy="0" r="60" fill="#0d0d0d" />
+        <circle cx="0" cy="0" r="60" className="fill-[#0d0d0d]" />
       </svg>
     );
   };
@@ -3416,9 +3425,125 @@ const App: React.FC = () => {
     );
   };
 
+  const modeStyles = useMemo(() => {
+    let css = "";
+    if (colorMode === 'light') {
+      css = `
+        body { background-color: #f9fafb !important; color: #111827 !important; }
+        
+        /* Background Overrides */
+        .bg-\\[\\#0a0a0a\\], .bg-\\[\\#0d0d0d\\], .bg-black { background-color: #ffffff !important; border-color: #e5e7eb !important; }
+        .bg-\\[\\#0a0a0a\\]\\/80 { background-color: rgba(255, 255, 255, 0.8) !important; border-color: #e5e7eb !important; }
+        .bg-gray-900, .bg-gray-800 { background-color: #ffffff !important; border-color: #e5e7eb !important; }
+        .bg-gray-950 { background-color: #f3f4f6 !important; border-color: #e5e7eb !important; }
+        
+        /* Gradient Overrides - Important for Dashboard */
+        .bg-gradient-to-br.from-gray-900.to-black { 
+          background-image: none !important; 
+          background-color: #ffffff !important; 
+          border-color: #e5e7eb !important;
+          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+        }
+        
+        /* Transparent/Opacity Backgrounds */
+        [class*="bg-gray-900/"], [class*="bg-gray-800/"] { 
+          background-color: #f3f4f6 !important; 
+          border-color: #e5e7eb !important; 
+        }
+        .bg-black\\/40, .bg-black\\/50, .bg-black\\/80 { 
+          background-color: rgba(255, 255, 255, 0.8) !important; 
+          backdrop-filter: blur(8px) !important; 
+          border-color: #e5e7eb !important; 
+        }
+        
+        /* Text Color Overrides - Target specific roles instead of global text-white */
+        h1, h2, h3, h4, th, td, p, span { color: #1f2937 !important; }
+        .text-white { color: #1f2937 !important; }
+        .text-gray-100, .text-gray-200, .text-gray-300 { color: #374151 !important; }
+        .text-gray-400 { color: #4b5563 !important; }
+        .text-gray-500 { color: #6b7280 !important; }
+        .text-gray-600 { color: #9ca3af !important; }
+        
+        /* Border Overrides */
+        .border-gray-800, .border-gray-700, .border-gray-600 { border-color: #e5e7eb !important; }
+        .divide-gray-800 > * + *, .divide-gray-700 > * + * { border-color: #e5e7eb !important; }
+        
+        /* Specific Elements */
+        input, select, textarea { 
+          background-color: #ffffff !important; 
+          color: #111827 !important; 
+          border-color: #d1d5db !important; 
+        }
+        button.bg-gray-900:hover, button.bg-gray-800:hover, .hover\\:bg-gray-800:hover, .hover\\:bg-gray-700:hover { 
+          background-color: #f3f4f6 !important; 
+          color: #111827 !important;
+        }
+        
+        /* SVGs and Icons */
+        .fill-\\[\\#0d0d0d\\] { fill: #ffffff !important; }
+        
+        /* Ensure primary colored backgrounds STAY solid and vibrant */
+        .bg-blue-600 { background-color: #2563eb !important; }
+        .bg-purple-600 { background-color: #9333ea !important; }
+        .bg-emerald-600 { background-color: #059669 !important; }
+        .bg-orange-600 { background-color: #ea580c !important; }
+        .bg-rose-600 { background-color: #e11d48 !important; }
+        .bg-red-600 { background-color: #dc2626 !important; }
+
+        /* Force white text on primary buttons/active tabs ONLY */
+        .bg-blue-600, .bg-purple-600, .bg-emerald-600, .bg-orange-600, .bg-rose-600, .bg-red-600,
+        .bg-blue-600 *, .bg-purple-600 *, .bg-emerald-600 *, .bg-orange-600 *, .bg-rose-600 *, .bg-red-600 * { 
+          color: #ffffff !important; 
+        }
+        
+        /* Fix Summit Logo/Sidebar title */
+        h1.text-white { color: #111827 !important; }
+
+        /* Sidebar Item - Active State specifically targeting the blue-600 and blue-900 variants */
+        nav button.bg-blue-600\\/20, .bg-blue-900\\/20 { 
+          background-color: #dbeafe !important; 
+          color: #2563eb !important; 
+          border-color: #bfdbfe !important;
+        }
+      `;
+
+
+    } else if (colorMode === 'midnight') {
+      css = `
+        body { background-color: #050510 !important; color: #e0e7ff !important; }
+        
+        /* Background Overrides */
+        .bg-\\[\\#0a0a0a\\] { background-color: #050510 !important; }
+        .bg-\\[\\#0d0d0d\\] { background-color: #0a0a25 !important; border-color: #1e1b4b !important; }
+        
+        /* Opacity Backgrounds */
+        .bg-gray-900\\/20 { background-color: rgba(30, 27, 75, 0.3) !important; }
+        .bg-gray-900\\/30 { background-color: #08081f !important; border-color: #1e1b4b !important; }
+        .bg-gray-900\\/50 { background-color: rgba(30, 27, 75, 0.4) !important; border-color: #1e1b4b !important; }
+        
+        /* Text Colors */
+        .text-gray-100 { color: #e0e7ff !important; }
+        .text-gray-400 { color: #a5b4fc !important; }
+        .text-white { color: #ffffff !important; }
+        
+        /* Borders */
+        .border-gray-800 { border-color: #1e1b4b !important; }
+        .divide-gray-800 > * + * { border-color: #1e1b4b !important; }
+
+        /* Specific Elements */
+        input, select, textarea { background-color: #050510 !important; color: #e0e7ff !important; border-color: #1e1b4b !important; }
+        .bg-black\\/40 { background-color: rgba(5, 5, 16, 0.8) !important; backdrop-filter: blur(12px); }
+        .fill-\\[\\#0d0d0d\\] { fill: #0a0a25 !important; }
+      `;
+    }
+    return css;
+  }, [colorMode]);
+
   return (
     <>
+      <style>{modeStyles}</style>
       <div className="flex h-screen bg-[#0a0a0a] text-gray-100 font-sans selection:bg-blue-500/30 overflow-hidden relative">
+
         {/* Sidebar */}
         <aside className="w-64 border-r border-gray-800 flex flex-col p-6 space-y-8 bg-[#0d0d0d] flex-shrink-0">
           <div className="flex items-center space-x-2 px-2">
@@ -3444,7 +3569,7 @@ const App: React.FC = () => {
           <div className="pt-4 border-t border-gray-800 space-y-2">
             {!fileHandle ? (
               <>
-                <button onClick={handleCreateNewFile} className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-xs font-bold transition-all">
+                <button onClick={handleCreateNewFile} className={`w-full flex items-center justify-center space-x-2 ${theme.primary} ${theme.primaryHover} text-white py-2 rounded-lg text-xs font-bold transition-all`}>
                   <SaveIcon size={14} /> <span>NEW FILE</span>
                 </button>
                 <button onClick={handleOpenFile} className="w-full flex items-center justify-center space-x-2 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg text-xs font-bold transition-all">
@@ -5192,7 +5317,33 @@ const App: React.FC = () => {
                 {settingsActiveSection === 'Appearance' && (
                   <div className="max-w-2xl space-y-10">
                     <div>
+                      <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Sun size={20} className="text-gray-400" /> Interface Mode</h3>
+                      <div className="grid grid-cols-3 gap-6">
+                        {[
+                          { id: 'light', name: 'Daylight', icon: Sun, desc: 'Clean & Bright' },
+                          { id: 'dark', name: 'Midnight', icon: Moon, desc: 'Classic Dark' },
+                          { id: 'midnight', name: 'Obsidian', icon: Sparkles, desc: 'Deep Glow' },
+                        ].map(mode => (
+                          <button
+                            key={mode.id}
+                            onClick={() => setColorMode(mode.id as any)}
+                            className={`flex flex-col items-center gap-3 p-5 rounded-3xl border-2 transition-all group ${colorMode === mode.id ? 'bg-blue-600/10 border-blue-500 shadow-lg shadow-blue-900/10' : 'bg-gray-900/30 border-gray-800 hover:border-gray-700'}`}
+                          >
+                            <div className={`p-4 rounded-2xl transition-all ${colorMode === mode.id ? 'bg-blue-600 text-white shadow-xl shadow-blue-900/40' : 'bg-gray-800 text-gray-400 group-hover:bg-gray-700 group-hover:text-gray-200'}`}>
+                              <mode.icon size={28} />
+                            </div>
+                            <div className="text-center">
+                              <p className={`font-bold text-sm ${colorMode === mode.id ? 'text-white' : 'text-gray-400'}`}>{mode.name}</p>
+                              <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold opacity-60">{mode.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
                       <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><Palette size={20} className="text-gray-400" /> Color Theme</h3>
+
                       <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
                         {Object.entries(THEMES).map(([key, t]) => (
                           <button

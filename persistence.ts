@@ -45,6 +45,7 @@ export interface AppData {
     // UI State
     activeTab: string;
     currentTheme: string;
+    colorMode: 'light' | 'dark' | 'midnight';
     appFontSize: 'sm' | 'base' | 'lg';
 
     // Data State - Time
