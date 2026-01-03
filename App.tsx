@@ -5796,7 +5796,7 @@ const App: React.FC = () => {
                         <input
                           type="text"
                           placeholder="Your name..."
-                          className={`w-full bg-transparent border-b border-gray-600 px-0 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors font-bold tracking-tight`}
+                          className={`w-full bg-transparent border-b border-gray-600 px-3 py-2 outline-none text-white text-lg placeholder-gray-700 focus:${theme.border} transition-colors font-bold tracking-tight`}
                           value={userName}
                           onChange={e => setUserName(e.target.value)}
                         />

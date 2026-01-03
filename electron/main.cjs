@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,6 +27,11 @@ function createWindow() {
 
 app.whenReady().then(() => {
     createWindow();
+
+    // Check for updates on startup
+    if (app.isPackaged) {
+        autoUpdater.checkForUpdatesAndNotify();
+    }
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

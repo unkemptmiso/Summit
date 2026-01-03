@@ -26,3 +26,6 @@ dist-ssr
 # Data
 summit_data.json
 * - Business Expense/
+
+# Build
+release/
