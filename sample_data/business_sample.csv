@@ -1,35 +1,89 @@
 Date,Description,Category,Amount,Method
 2025-07-02,Office Supplies,Supplies,45.20,Chase Business
+2025-07-03,Internet Bill,Office expense,80.00,Chase Business
 2025-07-05,Adobe Creative Cloud,Office expense,54.99,Chase Business
+2025-07-06,Gas Station,Car and truck expenses,55.00,Chase Business
+2025-07-08,Google Ads,Advertising,150.00,Amex Business
 2025-07-10,Client Lunch,Travel and meals: Deductible meals,85.50,Amex Business
+2025-07-12,Printer Paper,Supplies,32.00,Chase Business
 2025-07-15,Upwork Freelancer,Contract labor,250.00,Transfer
+2025-07-18,Postage,Supplies,15.00,Chase Business
+2025-07-20,Lunch with Partner,Travel and meals: Deductible meals,42.00,Amex Business
+2025-07-22,Microsoft 365,Office expense,12.50,Chase Business
+2025-07-25,LinkedIn Premium,Advertising,59.99,Amex Business
+2025-07-27,Hard Drive,Office expense,120.00,Chase Business
 2025-07-28,Software Subscription,Office expense,29.99,Chase Business
+2025-07-30,Bank Fees,Commissions and fees,15.00,Chase Business
 2025-08-01,WeWork Day Pass,Rent or lease: Other business property,40.00,Chase Business
+2025-08-03,Gas Station,Car and truck expenses,48.00,Chase Business
 2025-08-05,Printer Ink,Supplies,60.00,Chase Business
+2025-08-06,Facebook Ads,Advertising,100.00,Amex Business
+2025-08-08,Office Cleaning,Maintenance,50.00,Cash
+2025-08-10,Coffee for Office,Supplies,22.00,Chase Business
 2025-08-12,Business Dinner,Travel and meals: Deductible meals,140.00,Amex Business
+2025-08-14,Cloud Hosting,Office expense,45.00,Chase Business
 2025-08-15,Legal Consultation,Legal and professional services,300.00,Check
 2025-08-18,Google Workspace,Office expense,12.00,Chase Business
 2025-08-20,Web Hosting,Advertising,50.00,Chase Business
+2025-08-22,Software Tool B,Office expense,19.99,Chase Business
+2025-08-25,Marketing Course,Advertising,299.00,Amex Business
+2025-08-28,Envelopes,Supplies,12.00,Chase Business
+2025-08-30,Client Coffee,Travel and meals: Deductible meals,18.00,Chase Business
 2025-09-01,Accounting Software,Office expense,30.00,Chase Business
+2025-09-02,Gas Station,Car and truck expenses,52.00,Chase Business
 2025-09-03,Client Gift,Business,75.00,Amex Business
+2025-09-05,Stock Photos,Advertising,45.00,Chase Business
+2025-09-07,Office Snacks,Supplies,38.00,Chase Business
 2025-09-08,Uber to Client,Travel and meals: Travel,25.00,Chase Business
+2025-09-10,Business Lunch,Travel and meals: Deductible meals,65.00,Amex Business
 2025-09-12,Flight for Conference,Travel and meals: Travel,350.00,Amex Business
 2025-09-14,Conference Hotel,Travel and meals: Travel,600.00,Amex Business
 2025-09-15,Conference Ticket,Advertising,499.00,Amex Business
+2025-09-18,Professional Membership,Taxes and licenses,120.00,Chase Business
 2025-09-20,Team Lunch,Travel and meals: Deductible meals,180.00,Amex Business
+2025-09-22,Software Dev Tool,Office expense,85.00,Chase Business
+2025-09-25,New Keyboard,Office expense,45.00,Chase Business
+2025-09-28,Cloud Backup,Office expense,15.00,Chase Business
 2025-10-01,Zoom Subscription,Office expense,15.99,Chase Business
+2025-10-03,Gas Station,Car and truck expenses,45.00,Chase Business
 2025-10-05,Facebook Ads,Advertising,200.00,Chase Business
+2025-10-06,Networking Brunch,Travel and meals: Deductible meals,55.00,Amex Business
+2025-10-08,Domain Renewal,Advertising,15.00,Chase Business
 2025-10-10,Stationery,Supplies,35.00,Chase Business
+2025-10-12,Filing Folders,Supplies,24.00,Chase Business
+2025-10-15,VPN Service,Office expense,12.00,Chase Business
 2025-10-18,New Monitor,Office expense,350.00,Chase Business
+2025-10-20,Technical Book,Supplies,45.00,Chase Business
+2025-10-22,LinkedIn Ads,Advertising,120.00,Amex Business
 2025-10-25,Postage / Shipping,Supplies,18.50,Chase Business
+2025-10-28,Client Dinner,Travel and meals: Deductible meals,210.00,Amex Business
+2025-10-30,Courier Service,Supplies,35.00,Cash
+2025-11-01,Internet Service,Office expense,80.00,Chase Business
 2025-11-02,Telephone Bill,Office expense,45.00,Chase Business
+2025-11-03,Gas Station,Car and truck expenses,50.00,Chase Business
 2025-11-05,LinkedIn Premium,Advertising,60.00,Amex Business
+2025-11-08,Marketing Agency Fe,Advertising,500.00,Transfer
+2025-11-10,Printer Repairs,Repairs and maintenance,110.00,Chase Business
 2025-11-12,Client Coffee,Travel and meals: Deductible meals,14.50,Chase Business
 2025-11-15,Web Designer Invoice,Contract labor,850.00,Transfer
+2025-11-18,Software Update,Office expense,95.00,Chase Business
 2025-11-20,Contractor Payment,Contract labor,1200.00,Transfer
+2025-11-22,Cable/Adapters,Supplies,34.00,Chase Business
+2025-11-25,Google Cloud,Office expense,25.00,Chase Business
+2025-11-28,Holiday Gifts Prep,Business,150.00,Amex Business
+2025-11-30,Bank Statement Fee,Commissions and fees,5.00,Chase Business
 2025-12-01,Annual LLC Fee,Taxes and licenses,150.00,Check
+2025-12-03,Gas Station,Car and truck expenses,55.00,Chase Business
 2025-12-05,Holiday Cards for Clients,Supplies,120.00,Chase Business
+2025-12-08,Business Insurance,Insurance (other than health),450.00,Check
 2025-12-10,Client Gift Baskets,Business,300.00,Amex Business
+2025-12-12,Holiday Lunch,Travel and meals: Deductible meals,140.00,Amex Business
 2025-12-15,End of Year Bonus,Wages,2000.00,Transfer
+2025-12-18,Yearly Software License,Office expense,599.00,Chase Business
 2025-12-20,Hard Drive Backup,Office expense,110.00,Chase Business
+2025-12-22,Shipping Gifts,Supplies,85.00,Chase Business
+2025-12-28,Tax Consultant,Legal and professional services,250.00,Check
+2025-12-30,New Year Networking,Travel and meals: Deductible meals,90.00,Amex Business
 2026-01-02,Monthly Cloud Storage,Office expense,10.00,Chase Business
+2026-01-03,Renewed Office Rental,Rent or lease: Other business property,1500.00,Check
+2026-01-04,Gas Station,Car and truck expenses,48.00,Chase Business

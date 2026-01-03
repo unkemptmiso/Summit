@@ -437,6 +437,13 @@ const App: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [userName]);
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      const today = new Date();
+      setCurrentMonth(today.getMonth());
+      setCurrentYear(today.getFullYear());
+    }
+  }, [activeTab]);
 
   // Security UI State
   const [securityFormMode, setSecurityFormMode] = useState<'none' | 'enable' | 'disable' | 'change'>('none');
