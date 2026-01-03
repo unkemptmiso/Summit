@@ -472,6 +472,7 @@ const App: React.FC = () => {
   const businessFileInputRef = useRef<HTMLInputElement>(null);
   const drivingLogFileInputRef = useRef<HTMLInputElement>(null);
   const assetHistoryFileInputRef = useRef<HTMLInputElement>(null);
+  const incomeHistoryFileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Persistence Logic ---
   const appData: AppData = useMemo(() => ({
@@ -1601,6 +1602,157 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
+  const handleIncomeHistoryImport = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result;
+        if (typeof text !== 'string') return;
+
+        const lines = text.split(/\r?\n/);
+        if (lines.length < 2) {
+          alert("File seems empty.");
+          return;
+        }
+
+        const headerLine = lines[0].toLowerCase();
+        const parseCSVLine = (str: string) => {
+          const arr = [];
+          let quote = false;
+          let col = '';
+          for (let c of str) {
+            if (c === '"') { quote = !quote; continue; }
+            if (c === ',' && !quote) { arr.push(col); col = ''; continue; }
+            col += c;
+          }
+          arr.push(col);
+          return arr.map(c => c.trim().replace(/^"|"$/g, ''));
+        };
+
+        const headers = parseCSVLine(headerLine);
+        const findIdx = (keys: string[]) => headers.findIndex(h => keys.some(k => h.includes(k)));
+
+        const dateIdx = findIdx(['date', 'time', 'dt']);
+        const streamIdx = findIdx(['stream', 'source', 'name', 'description']);
+        const grossIdx = findIdx(['gross', 'pre-tax', 'before-tax']);
+        const netIdx = findIdx(['net', 'after-tax', 'take-home']);
+        const isBusinessIdx = findIdx(['is business', 'business', 'isbusiness']);
+
+        if (dateIdx === -1 || streamIdx === -1 || (grossIdx === -1 && netIdx === -1)) {
+          alert("Could not identify Date, Stream Name, and at least one Amount column in CSV.");
+          return;
+        }
+
+        const groupedData = new Map<string, { dateStr: string, streams: IncomeStream[] }>();
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          const cols = parseCSVLine(line);
+
+          const rawDate = cols[dateIdx];
+          const rawStream = cols[streamIdx];
+          const rawGross = grossIdx !== -1 ? cols[grossIdx] : '0';
+          const rawNet = netIdx !== -1 ? cols[netIdx] : '0';
+          const rawIsBusiness = isBusinessIdx !== -1 ? cols[isBusinessIdx].toLowerCase() === 'true' || cols[isBusinessIdx].toLowerCase() === 'yes' || cols[isBusinessIdx] === '1' : false;
+
+          if (!rawDate || !rawStream) continue;
+
+          const grossVal = parseFloat(rawGross.replace(/[$,]/g, '')) || 0;
+          const netVal = parseFloat(rawNet.replace(/[$,]/g, '')) || 0;
+
+          let d = new Date(rawDate);
+          if (isNaN(d.getTime())) continue;
+
+          const sortKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+
+          if (!groupedData.has(sortKey)) {
+            groupedData.set(sortKey, {
+              dateStr: `${months[d.getMonth()]} ${d.getFullYear()}`,
+              streams: []
+            });
+          }
+
+          groupedData.get(sortKey)!.streams.push({
+            id: `imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            name: rawStream,
+            grossAmount: grossVal,
+            netAmount: netVal,
+            isBusiness: rawIsBusiness
+          });
+        }
+
+        // 1. Update master income streams list if needed
+        let updatedStreams = [...incomeStreams];
+        let streamsModified = false;
+
+        const allImportedStreamNames = new Set<string>();
+        groupedData.forEach(data => data.streams.forEach(s => allImportedStreamNames.add(s.name)));
+
+        allImportedStreamNames.forEach(name => {
+          if (!updatedStreams.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+            updatedStreams.push({
+              id: `stream_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+              name: name,
+              grossAmount: 0,
+              netAmount: 0,
+              isBusiness: false
+            });
+            streamsModified = true;
+          }
+        });
+
+        if (streamsModified) {
+          setIncomeStreams(updatedStreams);
+        }
+
+        // 2. Build History Entries
+        const newEntries: IncomeHistoryEntry[] = [];
+        groupedData.forEach((data, sortKey) => {
+          const totalGross = data.streams.reduce((acc, s) => acc + (typeof s.grossAmount === 'number' ? s.grossAmount : parseFloat(String(s.grossAmount)) || 0), 0);
+          const totalNet = data.streams.reduce((acc, s) => acc + (typeof s.netAmount === 'number' ? s.netAmount : parseFloat(String(s.netAmount)) || 0), 0);
+
+          newEntries.push({
+            date: data.dateStr,
+            sortKey: sortKey,
+            totalGross,
+            totalNet,
+            streams: data.streams,
+            comment: "Imported via CSV"
+          });
+        });
+
+        // 3. Merge into existing history
+        setIncomeHistory(prev => {
+          const combined = [...prev];
+          newEntries.forEach(ne => {
+            const idx = combined.findIndex(e => (e.sortKey || e.date) === ne.sortKey);
+            if (idx !== -1) {
+              if (confirm(`Overwrite income entry for ${ne.date}?`)) {
+                combined[idx] = ne;
+              }
+            } else {
+              combined.push(ne);
+            }
+          });
+          return combined.sort((a, b) => (b.sortKey || b.date).localeCompare(a.sortKey || a.date));
+        });
+
+        setToast({ message: `Imported ${newEntries.length} income history entries.`, show: true });
+
+      } catch (err) {
+        console.error(err);
+        alert("Error parsing CSV");
+      } finally {
+        if (e.target) e.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleExport = () => {
     let filtered = [...transactions];
 
@@ -2592,7 +2744,10 @@ const App: React.FC = () => {
           return;
         }
 
-        const groupedData = new Map<string, { dateStr: string, items: { name: string, value: number }[] }>();
+        const categoryIdx = findIdx(['category', 'type', 'group']);
+        const isLiabilityIdx = findIdx(['is liability', 'liability', 'isliability']);
+
+        const groupedData = new Map<string, { dateStr: string, items: { name: string, value: number, category?: string, isLiability?: boolean }[] }>();
 
         // 1. Group by Month
         for (let i = 1; i < lines.length; i++) {
@@ -2603,6 +2758,8 @@ const App: React.FC = () => {
           const rawDate = cols[dateIdx];
           const rawAsset = cols[assetIdx];
           const rawAmount = cols[amountIdx];
+          const rawCategory = categoryIdx !== -1 ? cols[categoryIdx] : undefined;
+          const rawIsLiability = isLiabilityIdx !== -1 ? cols[isLiabilityIdx].toLowerCase() === 'true' || cols[isLiabilityIdx].toLowerCase() === 'yes' || cols[isLiabilityIdx] === '1' : undefined;
 
           if (!rawDate || !rawAsset || !rawAmount) continue;
 
@@ -2622,7 +2779,12 @@ const App: React.FC = () => {
               items: []
             });
           }
-          groupedData.get(sortKey)!.items.push({ name: rawAsset, value: val });
+          groupedData.get(sortKey)!.items.push({
+            name: rawAsset,
+            value: val,
+            category: rawCategory,
+            isLiability: rawIsLiability
+          });
         }
 
         // --- NEW LOGIC: Update Asset Structure with New Items ---
@@ -2632,8 +2794,7 @@ const App: React.FC = () => {
         // Ensure "Liquid Assets & Investments" category exists or find it
         let defaultCat = updatedStructure.find(c => c.name === 'Liquid Assets & Investments' || c.id === '1');
         if (!defaultCat) {
-          // Fallback or create if totally missing
-          defaultCat = updatedStructure[0]; // Use first category if Liquid Assets not found by name
+          defaultCat = updatedStructure[0];
           if (!defaultCat) {
             defaultCat = { id: '1', name: 'Liquid Assets & Investments', isLiability: false, isTracking: false, items: [] };
             updatedStructure.unshift(defaultCat);
@@ -2648,28 +2809,47 @@ const App: React.FC = () => {
           return null;
         };
 
-        // Gather all unique item names from import
-        const allImportedNames = new Set<string>();
-        groupedData.forEach(data => data.items.forEach(i => allImportedNames.add(i.name)));
+        // Gather all unique items from import and ensure categories exist
+        groupedData.forEach(data => {
+          data.items.forEach(item => {
+            if (!findInStructure(item.name)) {
+              // Try to find category by name if provided
+              let targetCategory = defaultCat;
+              if (item.category) {
+                const existingCat = updatedStructure.find(c => c.name.toLowerCase() === item.category!.toLowerCase());
+                if (existingCat) {
+                  targetCategory = existingCat;
+                } else {
+                  // Create new category
+                  const newCatId = `cat_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                  const newCat: AssetCategory = {
+                    id: newCatId,
+                    name: item.category,
+                    isLiability: item.isLiability || false,
+                    isTracking: false,
+                    items: []
+                  };
+                  updatedStructure.push(newCat);
+                  targetCategory = newCat;
+                  structureModified = true;
+                }
+              }
 
-        allImportedNames.forEach(name => {
-          if (!findInStructure(name)) {
-            // Add new item to the default category (Liquid Assets)
-            defaultCat!.items.push({
-              id: `imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-              name: name,
-              value: '' // Initialize with empty value for current/future editing
-            });
-            structureModified = true;
-          }
+              targetCategory!.items.push({
+                id: `imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                name: item.name,
+                value: ''
+              });
+              structureModified = true;
+            }
+          });
         });
 
         if (structureModified) {
           setAssetStructure(updatedStructure);
         }
-        // ---------------------------------------------------------
 
-        // 2. Build History Entries (using updatedStructure)
+        // 2. Build History Entries
         const newEntries: MonthlyHistoryEntry[] = [];
 
         const findCategoryInfo = (assetName: string) => {
@@ -2683,10 +2863,11 @@ const App: React.FC = () => {
 
         groupedData.forEach((data, sortKey) => {
           const catMap = new Map<string, AssetCategory>();
+          let monthNetWorth = 0;
 
           data.items.forEach((item, idx) => {
             const knownCat = findCategoryInfo(item.name);
-            const targetCat = knownCat || defaultCat!; // Should always find knownCat now, but fallback to defaultCat
+            const targetCat = knownCat || defaultCat!;
 
             if (!catMap.has(targetCat.id)) {
               catMap.set(targetCat.id, {
@@ -2698,21 +2879,25 @@ const App: React.FC = () => {
               });
             }
 
-            // Attempt to preserve the ID from the main structure to allow linking/charting
             const structCat = updatedStructure.find(c => c.id === targetCat.id);
             const structItem = structCat?.items.find(i => i.name.toLowerCase() === item.name.toLowerCase());
             const itemId = structItem ? structItem.id : `imp_hist_${idx}`;
 
             catMap.get(targetCat.id)!.items.push({ id: itemId, name: item.name, value: item.value });
+
+            // Calculate Net Worth: Subtract liabilities
+            if (!targetCat.isTracking) {
+              if (targetCat.isLiability) monthNetWorth -= item.value;
+              else monthNetWorth += item.value;
+            }
           });
 
           const snapshotCategories: AssetCategory[] = Array.from(catMap.values());
-          const totalNetWorth = data.items.reduce((acc, i) => acc + i.value, 0);
 
           newEntries.push({
             date: data.dateStr,
             sortKey: sortKey,
-            netWorth: totalNetWorth,
+            netWorth: monthNetWorth,
             netDiff: 0,
             yield: 0,
             preTaxIncome: 0,
@@ -5262,6 +5447,10 @@ const App: React.FC = () => {
                       <p className="text-gray-500 mt-1">Track and manage your income streams.</p>
                     </div>
                     <div className="flex space-x-3">
+                      <input type="file" ref={incomeHistoryFileInputRef} onChange={handleIncomeHistoryImport} className="hidden" accept=".csv" />
+                      <button onClick={() => incomeHistoryFileInputRef.current?.click()} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-xs font-bold hover:bg-gray-800 text-gray-300 shadow-lg">
+                        <FileUp size={14} /><span>IMPORT HISTORY</span>
+                      </button>
                       <button onClick={() => setIsAddingIncome(true)} className="flex items-center space-x-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold hover:bg-gray-700 text-gray-300">
                         <PlusCircle size={14} /><span>NEW STREAM</span>
                       </button>

@@ -1,0 +1,126 @@
+Date,Category,Item Name,Value,Is Liability
+2024-01-31,Liquid Assets & Investments,Savings Account,8500.00,FALSE
+2024-01-31,Liquid Assets & Investments,401(k),32000.00,FALSE
+2024-01-31,Liquid Assets & Investments,Brokerage,8000.00,FALSE
+2024-01-31,Liabilities,Mortgage Principal,345000.00,TRUE
+2024-01-31,Liabilities,Car Loan,22000.00,TRUE
+2024-02-29,Liquid Assets & Investments,Savings Account,9200.00,FALSE
+2024-02-29,Liquid Assets & Investments,401(k),33100.00,FALSE
+2024-02-29,Liquid Assets & Investments,Brokerage,8200.00,FALSE
+2024-02-29,Liabilities,Mortgage Principal,344200.00,TRUE
+2024-02-29,Liabilities,Car Loan,21600.00,TRUE
+2024-03-31,Liquid Assets & Investments,Savings Account,9800.00,FALSE
+2024-03-31,Liquid Assets & Investments,401(k),34200.00,FALSE
+2024-03-31,Liquid Assets & Investments,Brokerage,8500.00,FALSE
+2024-03-31,Liabilities,Mortgage Principal,343400.00,TRUE
+2024-03-31,Liabilities,Car Loan,21200.00,TRUE
+2024-04-30,Liquid Assets & Investments,Savings Account,10500.00,FALSE
+2024-04-30,Liquid Assets & Investments,401(k),35400.00,FALSE
+2024-04-30,Liquid Assets & Investments,Brokerage,8800.00,FALSE
+2024-04-30,Liabilities,Mortgage Principal,342600.00,TRUE
+2024-04-30,Liabilities,Car Loan,20800.00,TRUE
+2024-05-31,Liquid Assets & Investments,Savings Account,11000.00,FALSE
+2024-05-31,Liquid Assets & Investments,401(k),36600.00,FALSE
+2024-05-31,Liquid Assets & Investments,Brokerage,9100.00,FALSE
+2024-05-31,Liabilities,Mortgage Principal,341800.00,TRUE
+2024-05-31,Liabilities,Car Loan,20400.00,TRUE
+2024-06-30,Liquid Assets & Investments,Savings Account,11500.00,FALSE
+2024-06-30,Liquid Assets & Investments,401(k),37800.00,FALSE
+2024-06-30,Liquid Assets & Investments,Brokerage,9400.00,FALSE
+2024-06-30,Liabilities,Mortgage Principal,341000.00,TRUE
+2024-06-30,Liabilities,Car Loan,20000.00,TRUE
+2024-07-31,Liquid Assets & Investments,Savings Account,12200.00,FALSE
+2024-07-31,Liquid Assets & Investments,401(k),39000.00,FALSE
+2024-07-31,Liquid Assets & Investments,Brokerage,9700.00,FALSE
+2024-07-31,Liabilities,Mortgage Principal,340200.00,TRUE
+2024-07-31,Liabilities,Car Loan,19600.00,TRUE
+2024-08-31,Liquid Assets & Investments,Savings Account,12800.00,FALSE
+2024-08-31,Liquid Assets & Investments,401(k),40200.00,FALSE
+2024-08-31,Liquid Assets & Investments,Brokerage,10000.00,FALSE
+2024-08-31,Liabilities,Mortgage Principal,339400.00,TRUE
+2024-08-31,Liabilities,Car Loan,19200.00,TRUE
+2024-09-30,Liquid Assets & Investments,Savings Account,13400.00,FALSE
+2024-09-30,Liquid Assets & Investments,401(k),41500.00,FALSE
+2024-09-30,Liquid Assets & Investments,Brokerage,10400.00,FALSE
+2024-09-30,Liabilities,Mortgage Principal,338600.00,TRUE
+2024-09-30,Liabilities,Car Loan,18800.00,TRUE
+2024-10-31,Liquid Assets & Investments,Savings Account,13900.00,FALSE
+2024-10-31,Liquid Assets & Investments,401(k),42800.00,FALSE
+2024-10-31,Liquid Assets & Investments,Brokerage,10800.00,FALSE
+2024-10-31,Liabilities,Mortgage Principal,337800.00,TRUE
+2024-10-31,Liabilities,Car Loan,18400.00,TRUE
+2024-11-30,Liquid Assets & Investments,Savings Account,14500.00,FALSE
+2024-11-30,Liquid Assets & Investments,401(k),44000.00,FALSE
+2024-11-30,Liquid Assets & Investments,Brokerage,11200.00,FALSE
+2024-11-30,Liabilities,Mortgage Principal,337000.00,TRUE
+2024-11-30,Liabilities,Car Loan,18000.00,TRUE
+2024-12-31,Liquid Assets & Investments,Savings Account,16000.00,FALSE
+2024-12-31,Liquid Assets & Investments,401(k),45000.00,FALSE
+2024-12-31,Liquid Assets & Investments,Brokerage,11500.00,FALSE
+2024-12-31,Liabilities,Mortgage Principal,336200.00,TRUE
+2024-12-31,Liabilities,Car Loan,17600.00,TRUE
+2025-01-31,Liquid Assets & Investments,Savings Account,15500.00,FALSE
+2025-01-31,Liquid Assets & Investments,401(k),43000.00,FALSE
+2025-01-31,Liquid Assets & Investments,Brokerage,11400.00,FALSE
+2025-01-31,Liabilities,Mortgage Principal,343800.00,TRUE
+2025-01-31,Liabilities,Car Loan,20400.00,TRUE
+2025-02-28,Liquid Assets & Investments,Savings Account,15200.00,FALSE
+2025-02-28,Liquid Assets & Investments,401(k),43500.00,FALSE
+2025-02-28,Liquid Assets & Investments,Brokerage,11600.00,FALSE
+2025-02-28,Liabilities,Mortgage Principal,343200.00,TRUE
+2025-02-28,Liabilities,Car Loan,20000.00,TRUE
+2025-03-31,Liquid Assets & Investments,Savings Account,14800.00,FALSE
+2025-03-31,Liquid Assets & Investments,401(k),44000.00,FALSE
+2025-03-31,Liquid Assets & Investments,Brokerage,11800.00,FALSE
+2025-03-31,Liabilities,Mortgage Principal,342600.00,TRUE
+2025-03-31,Liabilities,Car Loan,19600.00,TRUE
+2025-04-30,Liquid Assets & Investments,Savings Account,14900.00,FALSE
+2025-04-30,Liquid Assets & Investments,401(k),44200.00,FALSE
+2025-04-30,Liquid Assets & Investments,Brokerage,11900.00,FALSE
+2025-04-30,Liabilities,Mortgage Principal,342000.00,TRUE
+2025-04-30,Liabilities,Car Loan,19200.00,TRUE
+2025-05-31,Liquid Assets & Investments,Savings Account,14950.00,FALSE
+2025-05-31,Liquid Assets & Investments,401(k),44500.00,FALSE
+2025-05-31,Liquid Assets & Investments,Brokerage,11950.00,FALSE
+2025-05-31,Liabilities,Mortgage Principal,341400.00,TRUE
+2025-05-31,Liabilities,Car Loan,18800.00,TRUE
+2025-06-30,Liquid Assets & Investments,Savings Account,15000.00,FALSE
+2025-06-30,Liquid Assets & Investments,401(k),44800.00,FALSE
+2025-06-30,Liquid Assets & Investments,Brokerage,12000.00,FALSE
+2025-06-30,Liabilities,Mortgage Principal,340800.00,TRUE
+2025-06-30,Liabilities,Car Loan,18400.00,TRUE
+2025-07-31,Liquid Assets & Investments,Savings Account,15000.00,FALSE
+2025-07-31,Liquid Assets & Investments,401(k),45000.00,FALSE
+2025-07-31,Liquid Assets & Investments,Brokerage,12000.00,FALSE
+2025-07-31,Liabilities,Mortgage Principal,340000.00,TRUE
+2025-07-31,Liabilities,Car Loan,18000.00,TRUE
+2025-08-31,Liquid Assets & Investments,Savings Account,16500.00,FALSE
+2025-08-31,Liquid Assets & Investments,401(k),46200.00,FALSE
+2025-08-31,Liquid Assets & Investments,Brokerage,12500.00,FALSE
+2025-08-31,Liabilities,Mortgage Principal,339200.00,TRUE
+2025-08-31,Liabilities,Car Loan,17600.00,TRUE
+2025-09-30,Liquid Assets & Investments,Savings Account,17800.00,FALSE
+2025-09-30,Liquid Assets & Investments,401(k),47500.00,FALSE
+2025-09-30,Liquid Assets & Investments,Brokerage,12300.00,FALSE
+2025-09-30,Liabilities,Mortgage Principal,338400.00,TRUE
+2025-09-30,Liabilities,Car Loan,17200.00,TRUE
+2025-10-31,Liquid Assets & Investments,Savings Account,18500.00,FALSE
+2025-10-31,Liquid Assets & Investments,401(k),48800.00,FALSE
+2025-10-31,Liquid Assets & Investments,Brokerage,12900.00,FALSE
+2025-10-31,Liabilities,Mortgage Principal,337600.00,TRUE
+2025-10-31,Liabilities,Car Loan,16800.00,TRUE
+2025-11-30,Liquid Assets & Investments,Savings Account,20000.00,FALSE
+2025-11-30,Liquid Assets & Investments,401(k),49900.00,FALSE
+2025-11-30,Liquid Assets & Investments,Brokerage,13400.00,FALSE
+2025-11-30,Liabilities,Mortgage Principal,336800.00,TRUE
+2025-11-30,Liabilities,Car Loan,16400.00,TRUE
+2025-12-31,Liquid Assets & Investments,Savings Account,24000.00,FALSE
+2025-12-31,Liquid Assets & Investments,401(k),51200.00,FALSE
+2025-12-31,Liquid Assets & Investments,Brokerage,14000.00,FALSE
+2025-12-31,Liabilities,Mortgage Principal,336000.00,TRUE
+2025-12-31,Liabilities,Car Loan,16000.00,TRUE
+2026-01-02,Liquid Assets & Investments,Savings Account,23850.00,FALSE
+2026-01-02,Liquid Assets & Investments,401(k),52000.00,FALSE
+2026-01-02,Liquid Assets & Investments,Brokerage,14200.00,FALSE
+2026-01-02,Liabilities,Mortgage Principal,335200.00,TRUE
+2026-01-02,Liabilities,Car Loan,15600.00,TRUE
