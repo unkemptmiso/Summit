@@ -30,3 +30,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload Sample Data
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: sample_data/sample_summit_data_pw1234.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
