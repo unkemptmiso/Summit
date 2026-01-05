@@ -48,7 +48,8 @@ import {
   Calculator,
   Sun,
   Moon,
-  Sparkles
+  Sparkles,
+  Database
 } from 'lucide-react';
 
 
@@ -5979,6 +5980,135 @@ const App: React.FC = () => {
                           >
                             <Download size={16} />
                             <span>EXPORT ALL</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-800 pt-8">
+                      <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                        <Database size={20} className="text-blue-400" /> Section Cleanup
+                      </h3>
+                      <p className="text-gray-500 text-sm mb-6">Individually clear data for specific sections of the application.</p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Spending Ledger Cleanup */}
+                        <div className="bg-gray-900/30 border border-gray-800 p-5 rounded-2xl flex flex-col justify-between group hover:border-blue-900/30 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Receipt size={16} className="text-gray-400 group-hover:text-blue-400 transition-colors" />
+                              <h4 className="text-white font-bold text-sm">Spending Ledger</h4>
+                            </div>
+                            <p className="text-gray-500 text-xs leading-relaxed mb-4">Removes all transactions, recurring expenses, and reset spending categories/methods.</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to clear ALL Spending Ledger data? This includes transactions and categories.')) {
+                                setTransactions([]);
+                                setRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+                                setCategories(INITIAL_CATEGORIES);
+                                setPaymentMethods(INITIAL_PAYMENT_METHODS);
+                                setToast({ message: 'Spending Ledger data cleared', show: true });
+                              }
+                            }}
+                            className="w-full py-2.5 bg-gray-800/50 hover:bg-red-900/20 text-gray-400 hover:text-red-400 rounded-xl text-[10px] font-bold transition-all border border-gray-700 hover:border-red-900/30 uppercase tracking-wider"
+                          >
+                            Clear Spending
+                          </button>
+                        </div>
+
+                        {/* Asset Watch Cleanup */}
+                        <div className="bg-gray-900/30 border border-gray-800 p-5 rounded-2xl flex flex-col justify-between group hover:border-blue-900/30 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <TrendingUp size={16} className="text-gray-400 group-hover:text-blue-400 transition-colors" />
+                              <h4 className="text-white font-bold text-sm">Asset Watch</h4>
+                            </div>
+                            <p className="text-gray-500 text-xs leading-relaxed mb-4">Removes all monthly history records and resets the asset structure to default.</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to clear ALL Asset Watch data? This will reset your assets and history.')) {
+                                setAssetStructure(INITIAL_ASSET_STRUCTURE);
+                                setMonthlyHistory([]);
+                                setToast({ message: 'Asset Watch data cleared', show: true });
+                              }
+                            }}
+                            className="w-full py-2.5 bg-gray-800/50 hover:bg-red-900/20 text-gray-400 hover:text-red-400 rounded-xl text-[10px] font-bold transition-all border border-gray-700 hover:border-red-900/30 uppercase tracking-wider"
+                          >
+                            Clear Assets
+                          </button>
+                        </div>
+
+                        {/* Income Manager Cleanup */}
+                        <div className="bg-gray-900/30 border border-gray-800 p-5 rounded-2xl flex flex-col justify-between group hover:border-blue-900/30 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Wallet size={16} className="text-gray-400 group-hover:text-blue-400 transition-colors" />
+                              <h4 className="text-white font-bold text-sm">Income Manager</h4>
+                            </div>
+                            <p className="text-gray-500 text-xs leading-relaxed mb-4">Removes all income streams and resets saved income history.</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to clear ALL Income Manager data?')) {
+                                setIncomeStreams(INITIAL_INCOME_STREAMS);
+                                setIncomeHistory([]);
+                                setToast({ message: 'Income Manager data cleared', show: true });
+                              }
+                            }}
+                            className="w-full py-2.5 bg-gray-900/50 hover:bg-red-900/20 text-gray-400 hover:text-red-400 rounded-xl text-[10px] font-bold transition-all border border-gray-700 hover:border-red-900/30 uppercase tracking-wider"
+                          >
+                            Clear Income
+                          </button>
+                        </div>
+
+                        {/* Business Center Cleanup */}
+                        <div className="bg-gray-900/30 border border-gray-800 p-5 rounded-2xl flex flex-col justify-between group hover:border-blue-900/30 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Briefcase size={16} className="text-gray-400 group-hover:text-blue-400 transition-colors" />
+                              <h4 className="text-white font-bold text-sm">Business Center</h4>
+                            </div>
+                            <p className="text-gray-500 text-xs leading-relaxed mb-4">Removes all business transactions, categories, and payment methods.</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to clear ALL Business Center data?')) {
+                                setBusinessTransactions([]);
+                                setBusinessCategories(INITIAL_BUSINESS_CATEGORIES);
+                                setBusinessPaymentMethods(INITIAL_PAYMENT_METHODS);
+                                setBusinessRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+                                setToast({ message: 'Business Center data cleared', show: true });
+                              }
+                            }}
+                            className="w-full py-2.5 bg-gray-800/50 hover:bg-red-900/20 text-gray-400 hover:text-red-400 rounded-xl text-[10px] font-bold transition-all border border-gray-700 hover:border-red-900/30 uppercase tracking-wider"
+                          >
+                            Clear Business
+                          </button>
+                        </div>
+
+                        {/* Driving Log Cleanup */}
+                        <div className="bg-gray-900/30 border border-gray-800 p-5 rounded-2xl flex flex-col justify-between group hover:border-blue-900/30 transition-colors">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <Car size={16} className="text-gray-400 group-hover:text-blue-400 transition-colors" />
+                              <h4 className="text-white font-bold text-sm">Driving Log</h4>
+                            </div>
+                            <p className="text-gray-500 text-xs leading-relaxed mb-4">Removes all mileage entries and resets driving purposes and rates.</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to clear ALL Driving Log data?')) {
+                                setDrivingLog([]);
+                                setDrivingPurposes(INITIAL_DRIVING_PURPOSES);
+                                setYearlyMileageRates({ '2024': 0.67, '2025': 0.70 });
+                                setToast({ message: 'Driving Log data cleared', show: true });
+                              }
+                            }}
+                            className="w-full py-2.5 bg-gray-800/50 hover:bg-red-900/20 text-gray-400 hover:text-red-400 rounded-xl text-[10px] font-bold transition-all border border-gray-700 hover:border-red-900/30 uppercase tracking-wider"
+                          >
+                            Clear Mileage
                           </button>
                         </div>
                       </div>
