@@ -1083,6 +1083,7 @@ const App: React.FC = () => {
       }
 
       const newEntries: DrivingLogEntry[] = [];
+      const detectedPurposes = new Set<string>();
       let skippedCount = 0;
       let detectedYear = currentYear;
 
@@ -1113,16 +1114,32 @@ const App: React.FC = () => {
         }
         detectedYear = parseInt(formattedDate.substring(0, 4));
 
+        let purpVal = "Imported";
+        if (purposeIdx !== -1 && cols[purposeIdx]) {
+          const rawPurp = cols[purposeIdx].trim();
+          if (rawPurp) {
+            purpVal = rawPurp;
+            detectedPurposes.add(purpVal);
+          }
+        }
+
         newEntries.push({
           id: Math.random().toString(36).substr(2, 9),
           date: formattedDate,
           miles: milesVal,
           destination: (destIdx !== -1 && cols[destIdx]) ? cols[destIdx] : "",
-          purpose: (purposeIdx !== -1 && cols[purposeIdx]) ? cols[purposeIdx] : "Imported"
+          purpose: purpVal
         });
       }
 
       if (newEntries.length > 0) {
+        if (detectedPurposes.size > 0) {
+          setDrivingPurposes(prev => {
+            const uniqueNew = Array.from(detectedPurposes).filter(p => !prev.includes(p));
+            return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
+          });
+        }
+
         setDrivingLog(prev => [...prev, ...newEntries]);
         setToast({
           message: `Driving Log for Year ${detectedYear} Imported 🎉 (${newEntries.length} added${skippedCount > 0 ? `, ${skippedCount} skipped` : ''})`,
@@ -1586,6 +1603,7 @@ const App: React.FC = () => {
 
         const newTransactions: Transaction[] = [];
         const detectedMethods = new Set<string>();
+        const detectedCategories = new Set<string>();
         let errorCount = 0;
 
         for (let i = 1; i < lines.length; i++) {
@@ -1624,12 +1642,22 @@ const App: React.FC = () => {
             }
           }
 
+          // Category Logic
+          let catVal = "Miscellaneous";
+          if (catIdx !== -1 && cols[catIdx]) {
+            const rawCat = cols[catIdx].trim();
+            if (rawCat) {
+              catVal = rawCat;
+              detectedCategories.add(catVal);
+            }
+          }
+
           newTransactions.push({
             id: Math.random().toString(36).substr(2, 9),
             date: finalDateStr,
             description: (descIdx !== -1 && cols[descIdx]) ? cols[descIdx] : "Imported Transaction",
             amount: Math.abs(amountVal),
-            category: (catIdx !== -1 && cols[catIdx]) ? cols[catIdx] : "Miscellaneous",
+            category: catVal,
             method: methodVal,
             createdAt: Date.now()
           });
@@ -1640,6 +1668,13 @@ const App: React.FC = () => {
           if (detectedMethods.size > 0) {
             setPaymentMethods(prev => {
               const uniqueNew = Array.from(detectedMethods).filter(m => !prev.includes(m));
+              return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
+            });
+          }
+
+          if (detectedCategories.size > 0) {
+            setCategories(prev => {
+              const uniqueNew = Array.from(detectedCategories).filter(c => !prev.includes(c));
               return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
             });
           }
@@ -2236,6 +2271,7 @@ const App: React.FC = () => {
 
         const newTransactions: Transaction[] = [];
         const detectedMethods = new Set<string>();
+        const detectedCategories = new Set<string>();
         let errorCount = 0;
 
         for (let i = 1; i < lines.length; i++) {
@@ -2272,12 +2308,22 @@ const App: React.FC = () => {
             }
           }
 
+          // Category Logic
+          let catVal = "Miscellaneous";
+          if (catIdx !== -1 && cols[catIdx]) {
+            const rawCat = cols[catIdx].trim();
+            if (rawCat) {
+              catVal = rawCat;
+              detectedCategories.add(catVal);
+            }
+          }
+
           newTransactions.push({
             id: Math.random().toString(36).substr(2, 9),
             date: finalDateStr,
             description: (descIdx !== -1 && cols[descIdx]) ? cols[descIdx] : "Imported Transaction",
             amount: Math.abs(amountVal),
-            category: (catIdx !== -1 && cols[catIdx]) ? cols[catIdx] : "Miscellaneous",
+            category: catVal,
             method: methodVal,
             createdAt: Date.now()
           });
@@ -2287,6 +2333,13 @@ const App: React.FC = () => {
           if (detectedMethods.size > 0) {
             setBusinessPaymentMethods(prev => {
               const uniqueNew = Array.from(detectedMethods).filter(m => !prev.includes(m));
+              return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
+            });
+          }
+
+          if (detectedCategories.size > 0) {
+            setBusinessCategories(prev => {
+              const uniqueNew = Array.from(detectedCategories).filter(c => !prev.includes(c));
               return uniqueNew.length > 0 ? [...prev, ...uniqueNew] : prev;
             });
           }
@@ -4220,8 +4273,8 @@ const App: React.FC = () => {
                                   setIsDatePickerOpen(false);
                                 }}
                                 className={`py-2.5 text-xs font-semibold rounded-xl transition-all ${currentMonth === idx
-                                    ? theme.primary + ' text-white shadow-lg shadow-emerald-500/20'
-                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                  ? theme.primary + ' text-white shadow-lg shadow-emerald-500/20'
+                                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
                                   }`}
                               >
                                 {m.substring(0, 3)}
