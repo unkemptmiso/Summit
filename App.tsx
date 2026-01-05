@@ -50,7 +50,11 @@ import {
   Moon,
   Sparkles,
   Database,
-  RotateCcw
+  Sparkles,
+  Database,
+  RotateCcw,
+  AlertCircle,
+  Info
 } from 'lucide-react';
 
 
@@ -306,7 +310,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('expenses');
   const [currentTheme, setCurrentTheme] = useState<keyof typeof THEMES>('blue');
   const [appFontSize, setAppFontSize] = useState<'sm' | 'base' | 'lg'>('base');
-  const [toast, setToast] = useState<{ message: string, show: boolean } | null>(null);
+  const [toast, setToast] = useState<{ message: string, show: boolean, type?: 'success' | 'error' | 'info' } | null>(null);
   const [dashboardChartTimeView, setDashboardChartTimeView] = useState<'month' | 'year'>('month');
   const [dashboardOrder, setDashboardOrder] = useState<string[]>(DASHBOARD_WIDGETS.map(w => w.id));
   const [hiddenDashboardWidgets, setHiddenDashboardWidgets] = useState<string[]>([]);
@@ -559,11 +563,12 @@ const App: React.FC = () => {
         }
 
         if (status === 'error') {
-          setToast({ message: "Update check failed", show: true });
+          // data is the error string
+          setToast({ message: `Update check failed: ${typeof data === 'string' ? data : 'Unknown error'}`, show: true, type: 'error' });
         } else if (status === 'downloaded') {
-          setToast({ message: "New update ready to install", show: true });
+          setToast({ message: "New update ready to install", show: true, type: 'success' });
         } else if (status === 'not-available' && updateStatus === 'checking') {
-          setToast({ message: "You are on the latest version", show: true });
+          setToast({ message: "You are on the latest version", show: true, type: 'info' });
         }
       });
       return removeListener;
@@ -576,7 +581,7 @@ const App: React.FC = () => {
       const res = await window.electronAPI.checkForUpdates();
       if (res && res.status === 'dev-mode') {
         setUpdateStatus('idle');
-        setToast({ message: "Cannot check for updates in development mode", show: true });
+        setToast({ message: "Cannot check for updates in development mode", show: true, type: 'info' });
       }
     }
   };
@@ -7259,16 +7264,29 @@ const App: React.FC = () => {
         )}
 
       {/* Toast Notification */}
+      {/* Toast Notification */}
       {toast && toast.show && (
-        <div className="fixed bottom-8 right-8 bg-[#0d0d0d] border border-gray-700 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 animate-in slide-in-from-bottom-4 fade-in duration-300 z-50">
-          <div className={`w-10 h-10 rounded-full ${theme.primary} flex items-center justify-center`}>
-            <Check size={20} className="text-white" />
+        <div className={`fixed bottom-8 right-8 border px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 animate-in slide-in-from-bottom-4 fade-in duration-300 z-50 
+          ${toast.type === 'error' ? 'bg-red-950/90 border-red-900' : toast.type === 'info' ? 'bg-blue-950/90 border-blue-900' : 'bg-[#0d0d0d] border-gray-700'}`}>
+
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center 
+            ${toast.type === 'error' ? 'bg-red-600' : toast.type === 'info' ? 'bg-blue-600' : theme.primary}`}>
+
+            {toast.type === 'error' ? (
+              <AlertCircle size={20} className="text-white" />
+            ) : toast.type === 'info' ? (
+              <Info size={20} className="text-white" />
+            ) : (
+              <Check size={20} className="text-white" />
+            )}
           </div>
           <div>
-            <p className="font-bold text-sm">Success</p>
-            <p className="text-gray-400 text-xs">{toast.message}</p>
+            <p className="font-bold text-sm text-white">
+              {toast.type === 'error' ? 'Error' : toast.type === 'info' ? 'Info' : 'Success'}
+            </p>
+            <p className="text-gray-300 text-xs">{toast.message}</p>
           </div>
-          <button onClick={() => setToast(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
+          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-white"><X size={16} /></button>
         </div>
       )}
     </>

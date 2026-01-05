@@ -29,7 +29,10 @@
       "package.json"
     ],
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.finance"
     },
     "publish": {
