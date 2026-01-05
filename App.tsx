@@ -455,6 +455,11 @@ const App: React.FC = () => {
   const [lockError, setLockError] = useState<boolean>(false);
   const [pendingEncryptedData, setPendingEncryptedData] = useState<EncryptedData | null>(null);
   const [sessionPassword, setSessionPassword] = useState<string | null>(null);
+  // --- Update State ---
+  const [appVersion, setAppVersion] = useState<string>('Unknown');
+  const [updateStatus, setUpdateStatus] = useState<string>('idle'); // idle, checking, available, not-available, downloaded, error, progress
+  const [updateInfo, setUpdateInfo] = useState<any>(null);
+
   // --- Greeting State ---
   const [greeting, setGreeting] = useState("");
   const [greetingOpacity, setGreetingOpacity] = useState(1);
@@ -529,6 +534,55 @@ const App: React.FC = () => {
     };
     loadLastFile();
   }, []);
+
+  // --- Updates Logic ---
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.getAppVersion().then(v => setAppVersion(v)).catch(e => console.error(e));
+
+      const removeListener = window.electronAPI.onUpdateStatus(({ status, data }) => {
+        console.log("Update status:", status, data);
+        if (status === 'progress') {
+          // Don't override 'available' state if we want to keep showing release notes, 
+          // but we typically switch to a downloading view.
+          setUpdateStatus('progress');
+          setUpdateInfo(data);
+          return;
+        }
+
+        setUpdateStatus(status);
+        if (data && typeof data === 'object') {
+          setUpdateInfo(prev => ({ ...prev, ...data }));
+        }
+
+        if (status === 'error') {
+          setToast({ message: "Update check failed", show: true });
+        } else if (status === 'downloaded') {
+          setToast({ message: "New update ready to install", show: true });
+        } else if (status === 'not-available' && updateStatus === 'checking') {
+          setToast({ message: "You are on the latest version", show: true });
+        }
+      });
+      return removeListener;
+    }
+  }, [updateStatus]);
+
+  const handleCheckForUpdates = async () => {
+    if (window.electronAPI) {
+      setUpdateStatus('checking');
+      const res = await window.electronAPI.checkForUpdates();
+      if (res && res.status === 'dev-mode') {
+        setUpdateStatus('idle');
+        setToast({ message: "Cannot check for updates in development mode", show: true });
+      }
+    }
+  };
+
+  const handleQuitAndInstall = async () => {
+    if (window.electronAPI) {
+      await window.electronAPI.quitAndInstall();
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const businessFileInputRef = useRef<HTMLInputElement>(null);
@@ -5883,7 +5937,7 @@ const App: React.FC = () => {
               <div className="w-64 border-r border-gray-800 p-4 space-y-1 bg-gray-900/20">
                 <h2 className="text-xl font-bold text-white px-4 py-4 mb-2">Settings</h2>
 
-                {['Appearance', 'Security', 'Dashboard', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log'].map(section => (
+                {['Appearance', 'Security', 'Dashboard', 'Spending Ledger', 'Asset Watch', 'Income Manager', 'Business Center', 'Driving Log', 'Updates'].map(section => (
                   <button
                     key={section}
                     onClick={() => { setSettingsActiveSection(section); setSettingsSubSection(null); }}
@@ -6104,6 +6158,78 @@ const App: React.FC = () => {
                             </p>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+
+                {/* --- UPDATES --- */}
+                {settingsActiveSection === 'Updates' && (
+                  <div className="max-w-2xl space-y-10 animate-in slide-in-from-right-4 duration-300">
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Repeat size={20} className="text-blue-500" /> Software Updates</h3>
+                      <p className="text-gray-500 text-sm mb-6">Check for the latest features and improvements.</p>
+
+                      <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6">
+                        <div className="flex justify-between items-center mb-6">
+                          <div>
+                            <h4 className="text-white font-bold mb-1">Current Version: v{appVersion}</h4>
+                            <p className="text-gray-500 text-sm">
+                              {updateStatus === 'checking' && "Checking for updates..."}
+                              {updateStatus === 'available' && "New update available!"}
+                              {updateStatus === 'downloaded' && "Update downloaded and ready to install."}
+                              {updateStatus === 'not-available' && "You are up to date."}
+                              {updateStatus === 'progress' && "Downloading update..."}
+                              {(updateStatus === 'idle' || updateStatus === 'error') && "System is ready."}
+                            </p>
+                          </div>
+
+                          {updateStatus === 'downloaded' ? (
+                            <button
+                              onClick={handleQuitAndInstall}
+                              className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg shadow-green-900/20"
+                            >
+                              <Download size={16} />
+                              <span>RESTART & INSTALL</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={handleCheckForUpdates}
+                              disabled={updateStatus === 'checking' || updateStatus === 'downloaded' || updateStatus === 'progress'}
+                              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg ${updateStatus === 'checking' || updateStatus === 'progress' ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'}`}
+                            >
+                              <Repeat size={16} className={updateStatus === 'checking' || updateStatus === 'progress' ? 'animate-spin' : ''} />
+                              <span>{updateStatus === 'checking' ? 'CHECKING...' : updateStatus === 'progress' ? 'DOWNLOADING...' : 'CHECK FOR UPDATES'}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {(updateStatus === 'available' || updateStatus === 'progress' || updateStatus === 'downloaded') && updateInfo && (
+                          <div className="mt-4 bg-blue-900/10 border border-blue-800/30 p-4 rounded-xl">
+                            {updateInfo.version && <h5 className="text-blue-400 font-bold text-xs uppercase mb-2">New in version {updateInfo.version}</h5>}
+                            {/* Helper to strip HTML if possible, or just display raw if it's not too messy. Usually basic HTML.*/}
+                            <div className="text-gray-300 text-sm italic max-h-40 overflow-y-auto">
+                              {updateInfo.releaseNotes
+                                ? (typeof updateInfo.releaseNotes === 'string'
+                                  ? updateInfo.releaseNotes.replace(/<[^>]*>?/gm, '') // Simple strip tags
+                                  : "Check GitHub for release notes.")
+                                : "Performance improvements and bug fixes."}
+                            </div>
+                          </div>
+                        )}
+
+                        {updateStatus === 'progress' && updateInfo && (
+                          <div className="mt-4 space-y-2">
+                            <div className="flex justify-between text-xs text-gray-400">
+                              <span>Downloading...</span>
+                              <span>{Math.round(updateInfo.percent || 0)}%</span>
+                            </div>
+                            <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                              <div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${updateInfo.percent || 0}%` }}></div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

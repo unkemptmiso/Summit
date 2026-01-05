@@ -7,7 +7,7 @@ declare global {
             readFile: (path: string) => Promise<{ success: boolean; content?: string; error?: string }>;
             showSaveDialog: () => Promise<{ canceled: boolean; filePath?: string }>;
             showOpenDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
-            saveDirectoryDialog: () => Promise<FileSystemHandle>; // Correcting my previous thought, actually showDirectoryDialog
+            saveDirectoryDialog: () => Promise<FileSystemHandle>;
             showDirectoryDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
             ensureDir: (path: string) => Promise<{ success: boolean; error?: string }>;
             saveReceipt: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
@@ -22,8 +22,7 @@ declare global {
         showOpenFilePicker?: (options?: any) => Promise<FileSystemFileHandle[]>;
     }
 
-    // Fallback for environments where these aren't defined (avoiding 'Cannot find name')
-    // We use simple shapes that satisfy our usage.
+    // Fallback for environments where these aren't defined
     interface FileSystemHandle {
         kind: 'file' | 'directory';
         name: string;

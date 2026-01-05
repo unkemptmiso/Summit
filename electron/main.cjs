@@ -46,6 +46,43 @@ app.on('window-all-closed', () => {
     }
 });
 
+// --- Auto Updater IPC ---
+ipcMain.handle('check-for-updates', async () => {
+    if (!app.isPackaged) {
+        return { status: 'dev-mode' };
+    }
+    try {
+        const result = await autoUpdater.checkForUpdates();
+        return { status: 'checking', result };
+    } catch (error) {
+        console.error('Failed to check for updates:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('quit-and-install', () => {
+    autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
+});
+
+// Forward autoUpdater events to renderer
+const sendUpdateStatus = (status, data) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+        win.webContents.send('update-status', { status, data });
+    });
+};
+
+autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
+autoUpdater.on('update-available', (info) => sendUpdateStatus('available', info));
+autoUpdater.on('update-not-available', (info) => sendUpdateStatus('not-available', info));
+autoUpdater.on('error', (err) => sendUpdateStatus('error', err.toString()));
+autoUpdater.on('download-progress', (progressObj) => sendUpdateStatus('progress', progressObj));
+autoUpdater.on('update-downloaded', (info) => sendUpdateStatus('downloaded', info));
+
+
 // --- IPC Handlers for Persistence ---
 
 ipcMain.handle('save-file', async (event, filePath, content) => {

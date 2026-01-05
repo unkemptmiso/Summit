@@ -8,5 +8,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showDirectoryDialog: () => ipcRenderer.invoke('show-directory-dialog'),
     ensureDir: (dirPath) => ipcRenderer.invoke('ensure-dir', dirPath),
 
-    saveReceipt: (filePath, buffer) => ipcRenderer.invoke('save-receipt', filePath, buffer)
+    saveReceipt: (filePath, buffer) => ipcRenderer.invoke('save-receipt', filePath, buffer),
+
+    // Updates
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+    quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+    getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    onUpdateStatus: (callback) => {
+        const subscription = (_event, value) => callback(value);
+        ipcRenderer.on('update-status', subscription);
+        return () => ipcRenderer.removeListener('update-status', subscription);
+    }
 });
