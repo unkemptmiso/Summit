@@ -127,6 +127,60 @@ async function hashPassword(password: string): Promise<string> {
   return hashHex;
 }
 
+function parseFlexibleDate(rawDate: string, defaultYear: number): string | null {
+  if (!rawDate) return null;
+  const cleanStr = rawDate.trim();
+
+  // Try standard parse
+  const d = new Date(cleanStr);
+
+  if (!isNaN(d.getTime())) {
+    // Check if a year was likely provided in the string.
+    // 1. Look for 4-digit years (19xx or 20xx)
+    // 2. Look for two slashes or dashes (e.g. 01/01/21)
+    // 3. Look for a comma followed by a year (e.g. Jan 1, 2021)
+    const hasYear = /\b(19|20)\d{2}\b/.test(cleanStr) ||
+      cleanStr.split('/').length > 2 ||
+      cleanStr.split('-').length > 2 ||
+      /,\s*\d{2,4}\b/.test(cleanStr);
+
+    let year = d.getFullYear();
+    // Special handling: if Date.parse succeeded but no year found in string,
+    // force it to the user-selected defaultYear.
+    if (!hasYear) {
+      year = defaultYear;
+    }
+
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  }
+
+  // Fallback for names of months (e.g. "January") if Date parse failed
+  const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const shortMonthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+  const lower = cleanStr.toLowerCase();
+  let mIdx = monthNames.findIndex(m => lower.includes(m));
+  if (mIdx === -1) {
+    mIdx = shortMonthNames.findIndex(m => lower.includes(m));
+  }
+
+  if (mIdx !== -1) {
+    // Try to find a day and year in the same string
+    const dayMatch = lower.match(/\b(\d{1,2})\b/);
+    const day = dayMatch ? dayMatch[1].padStart(2, '0') : "01";
+
+    const yearMatch = lower.match(/\b(19|20)\d{2}\b/);
+    const year = yearMatch ? yearMatch[0] : defaultYear.toString();
+
+    return `${year}-${(mIdx + 1).toString().padStart(2, '0')}-${day}`;
+  }
+
+  return null;
+}
+
 const INITIAL_INCOME_STREAMS: IncomeStream[] = [
   { id: '1', name: 'W-2 (Main Job)', grossAmount: 0, netAmount: 0, isBusiness: false },
   { id: '2', name: 'LLC Income', grossAmount: 0, netAmount: 0, isBusiness: true },
@@ -254,6 +308,7 @@ const App: React.FC = () => {
   const [dashboardChartTimeView, setDashboardChartTimeView] = useState<'month' | 'year'>('month');
   const [dashboardOrder, setDashboardOrder] = useState<string[]>(DASHBOARD_WIDGETS.map(w => w.id));
   const [hiddenDashboardWidgets, setHiddenDashboardWidgets] = useState<string[]>([]);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const theme = THEMES[currentTheme];
 
@@ -997,11 +1052,30 @@ const App: React.FC = () => {
       const headers = headerLine.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim());
 
       const findIndex = (keywords: string[]) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+      const monthsLong = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+      const monthsShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
-      const dateIdx = findIndex(['date', 'dt', 'time']);
+      let dateIdx = findIndex(['date', 'dt', 'time', 'when', 'period', 'timestamp', ...monthsLong, ...monthsShort]);
       const destIdx = findIndex(['destination', 'location', 'place', 'dest', 'where']);
-      const milesIdx = findIndex(['miles', 'mileage', 'dist', 'distance']);
-      const purposeIdx = findIndex(['purpose', 'reason', 'desc', 'note']);
+      let milesIdx = findIndex(['miles', 'mileage', 'dist', 'distance', 'qty', 'count']);
+      const purposeIdx = findIndex(['purpose', 'reason', 'desc', 'note', 'activity']);
+
+      // Fallback: Guess by content if necessary
+      if (lines.length > 1 && (dateIdx === -1 || milesIdx === -1)) {
+        const firstDataLine = lines[1].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+        for (let colIdx = 0; colIdx < firstDataLine.length; colIdx++) {
+          const val = firstDataLine[colIdx];
+          if (!val) continue;
+          if (dateIdx === -1) {
+            const d = new Date(val);
+            if (!isNaN(d.getTime()) && (val.includes('/') || val.includes('-') || val.split(' ').length >= 2)) dateIdx = colIdx;
+          }
+          if (milesIdx === -1) {
+            const cleaned = val.replace(/[$,\s]/g, '');
+            if (cleaned && !isNaN(parseFloat(cleaned)) && /^-?\d+(\.\d+)?$/.test(cleaned)) milesIdx = colIdx;
+          }
+        }
+      }
 
       if (dateIdx === -1 || milesIdx === -1) {
         alert("Could not identify required 'Date' or 'Miles' columns. Please check your CSV headers.");
@@ -1032,36 +1106,12 @@ const App: React.FC = () => {
           continue;
         }
 
-        let formattedDate = "";
-
-        // 1. ISO YYYY-MM-DD
-        if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-          formattedDate = rawDate;
-          detectedYear = parseInt(rawDate.substring(0, 4));
+        const formattedDate = parseFlexibleDate(rawDate, currentYear);
+        if (!formattedDate) {
+          skippedCount++;
+          continue;
         }
-        // 2. US MM/DD/YYYY
-        else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)) {
-          const [m, d, y] = rawDate.split('/');
-          formattedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-          detectedYear = parseInt(y);
-        }
-        // 3. MM/DD (assume current view year)
-        else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rawDate)) {
-          const [m, d] = rawDate.split('/');
-          formattedDate = `${currentYear}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-        }
-        // 4. Try generic Date parse
-        else {
-          const ts = Date.parse(rawDate);
-          if (!isNaN(ts)) {
-            const d = new Date(ts);
-            formattedDate = d.toISOString().split('T')[0];
-            detectedYear = d.getFullYear();
-          } else {
-            skippedCount++;
-            continue;
-          }
-        }
+        detectedYear = parseInt(formattedDate.substring(0, 4));
 
         newEntries.push({
           id: Math.random().toString(36).substr(2, 9),
@@ -1495,12 +1545,39 @@ const App: React.FC = () => {
 
         const getIdx = (patterns: string[]) => headers.findIndex(h => patterns.some(p => h.includes(p)));
 
+        const monthsLong = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+        const monthsShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
         // Flexible matching
-        const dateIdx = getIdx(['date', 'time', 'day', 'dt']);
+        let dateIdx = getIdx(['date', 'time', 'day', 'dt', 'when', 'period', 'timestamp', ...monthsLong, ...monthsShort]);
         const descIdx = getIdx(['description', 'desc', 'memo', 'merchant', 'name', 'payee', 'transaction', 'trans', 'detail', 'narrative', 'store', 'expense']);
-        const amountIdx = getIdx(['amount', 'amt', 'value', 'price', 'cost']);
-        const catIdx = getIdx(['category', 'cat', 'type']);
-        const methodIdx = getIdx(['method', 'account', 'payment', 'source', 'bank']);
+        let amountIdx = getIdx(['amount', 'amt', 'value', 'price', 'cost', 'spent', 'total']);
+        const catIdx = getIdx(['category', 'cat', 'type', 'group']);
+        const methodIdx = getIdx(['method', 'account', 'payment', 'source', 'bank', 'card', 'mode']);
+
+        // Fallback: If date or amount not found, try to guess by looking at the first data row
+        if (lines.length > 1 && (dateIdx === -1 || amountIdx === -1)) {
+          const firstDataLine = parseCSVLine(lines[1]);
+          for (let colIdx = 0; colIdx < firstDataLine.length; colIdx++) {
+            const val = firstDataLine[colIdx];
+            if (!val) continue;
+
+            // Guess Date
+            if (dateIdx === -1) {
+              const d = new Date(val);
+              if (!isNaN(d.getTime()) && (val.includes('/') || val.includes('-') || val.split(' ').length >= 2)) {
+                dateIdx = colIdx;
+              }
+            }
+            // Guess Amount
+            if (amountIdx === -1) {
+              const cleaned = val.replace(/[$,\s]/g, '');
+              if (cleaned && !isNaN(parseFloat(cleaned)) && /^-?\d+(\.\d+)?$/.test(cleaned)) {
+                amountIdx = colIdx;
+              }
+            }
+          }
+        }
 
         if (amountIdx === -1) {
           alert(`Could not find an 'Amount' column.\nFound headers: ${headers.join(', ')}`);
@@ -1527,37 +1604,12 @@ const App: React.FC = () => {
           if (isNaN(amountVal)) { errorCount++; continue; }
 
           // Date parsing
-          let finalDateStr = "";
           let rawDate = dateIdx !== -1 ? cols[dateIdx] : "";
+          let finalDateStr = parseFlexibleDate(rawDate, importLedgerYear);
 
-          if (rawDate) {
-            // Attempt standard parse first
-            const d = new Date(rawDate);
-            if (!isNaN(d.getTime())) {
-              // Heuristic: does rawDate contain 4 digits?
-              if (/\d{4}/.test(rawDate)) {
-                finalDateStr = d.toISOString().split('T')[0];
-              } else {
-                // Force year
-                finalDateStr = `${importLedgerYear}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
-              }
-            }
-          }
-
-          // Fallback: check month names in entire line or date col?
+          // Fallback: if primary date column failed, check the entire line for month names
           if (!finalDateStr) {
-            const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-            const shortMonthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-            const lowerLine = line.toLowerCase();
-
-            let mIdx = monthNames.findIndex(m => lowerLine.includes(m));
-            if (mIdx === -1) {
-              mIdx = shortMonthNames.findIndex(m => lowerLine.includes(m));
-            }
-
-            if (mIdx !== -1) {
-              finalDateStr = `${importLedgerYear}-${(mIdx + 1).toString().padStart(2, '0')}-01`;
-            }
+            finalDateStr = parseFlexibleDate(line, importLedgerYear);
           }
 
           if (!finalDateStr) { errorCount++; continue; }
@@ -1671,14 +1723,16 @@ const App: React.FC = () => {
           const grossVal = parseFloat(rawGross.replace(/[$,]/g, '')) || 0;
           const netVal = parseFloat(rawNet.replace(/[$,]/g, '')) || 0;
 
-          let d = new Date(rawDate);
-          if (isNaN(d.getTime())) continue;
+          const formattedDate = parseFlexibleDate(rawDate, currentYear);
+          if (!formattedDate) continue;
 
-          const sortKey = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+          const [yStr, mStr] = formattedDate.split('-');
+          const sortKey = `${yStr}-${mStr}`;
+          const monthIdx = parseInt(mStr) - 1;
 
           if (!groupedData.has(sortKey)) {
             groupedData.set(sortKey, {
-              dateStr: `${months[d.getMonth()]} ${d.getFullYear()}`,
+              dateStr: `${months[monthIdx]} ${yStr}`,
               streams: []
             });
           }
@@ -2142,12 +2196,38 @@ const App: React.FC = () => {
 
         const headers = parseCSVLine(headerRow);
         const getIdx = (patterns: string[]) => headers.findIndex(h => patterns.some(p => h.includes(p)));
+        const monthsLong = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+        const monthsShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
-        const dateIdx = getIdx(['date', 'time', 'day', 'dt']);
+        let dateIdx = getIdx(['date', 'time', 'day', 'dt', 'when', 'period', 'timestamp', ...monthsLong, ...monthsShort]);
         const descIdx = getIdx(['description', 'desc', 'memo', 'merchant', 'name', 'payee', 'transaction', 'trans', 'detail', 'narrative', 'store', 'expense']);
-        const amountIdx = getIdx(['amount', 'amt', 'value', 'price', 'cost']);
-        const catIdx = getIdx(['category', 'cat', 'type']);
-        const methodIdx = getIdx(['method', 'account', 'payment', 'source', 'bank']);
+        let amountIdx = getIdx(['amount', 'amt', 'value', 'price', 'cost', 'spent', 'total']);
+        const catIdx = getIdx(['category', 'cat', 'type', 'group']);
+        const methodIdx = getIdx(['method', 'account', 'payment', 'source', 'bank', 'card', 'mode']);
+
+        // Fallback: If date or amount not found, try to guess by looking at the first data row
+        if (lines.length > 1 && (dateIdx === -1 || amountIdx === -1)) {
+          const firstDataLine = parseCSVLine(lines[1]);
+          for (let colIdx = 0; colIdx < firstDataLine.length; colIdx++) {
+            const val = firstDataLine[colIdx];
+            if (!val) continue;
+
+            // Guess Date
+            if (dateIdx === -1) {
+              const d = new Date(val);
+              if (!isNaN(d.getTime()) && (val.includes('/') || val.includes('-') || val.split(' ').length >= 2)) {
+                dateIdx = colIdx;
+              }
+            }
+            // Guess Amount
+            if (amountIdx === -1) {
+              const cleaned = val.replace(/[$,\s]/g, '');
+              if (cleaned && !isNaN(parseFloat(cleaned)) && /^-?\d+(\.\d+)?$/.test(cleaned)) {
+                amountIdx = colIdx;
+              }
+            }
+          }
+        }
 
         if (amountIdx === -1) {
           alert(`Could not find an 'Amount' column.\nFound headers: ${headers.join(', ')}`);
@@ -2172,33 +2252,13 @@ const App: React.FC = () => {
 
           if (isNaN(amountVal)) { errorCount++; continue; }
 
-          let finalDateStr = "";
+          // Date parsing
           let rawDate = dateIdx !== -1 ? cols[dateIdx] : "";
+          let finalDateStr = parseFlexibleDate(rawDate, businessImportLedgerYear);
 
-          if (rawDate) {
-            const d = new Date(rawDate);
-            if (!isNaN(d.getTime())) {
-              if (/\d{4}/.test(rawDate)) {
-                finalDateStr = d.toISOString().split('T')[0];
-              } else {
-                finalDateStr = `${businessImportLedgerYear}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
-              }
-            }
-          }
-
+          // Fallback
           if (!finalDateStr) {
-            const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-            const shortMonthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-            const lowerLine = line.toLowerCase();
-
-            let mIdx = monthNames.findIndex(m => lowerLine.includes(m));
-            if (mIdx === -1) {
-              mIdx = shortMonthNames.findIndex(m => lowerLine.includes(m));
-            }
-
-            if (mIdx !== -1) {
-              finalDateStr = `${businessImportLedgerYear}-${(mIdx + 1).toString().padStart(2, '0')}-01`;
-            }
+            finalDateStr = parseFlexibleDate(line, businessImportLedgerYear);
           }
 
           if (!finalDateStr) { errorCount++; continue; }
@@ -4119,9 +4179,71 @@ const App: React.FC = () => {
                     <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
                       <ChevronLeft size={20} />
                     </button>
-                    <h2 className="text-lg font-semibold min-w-[140px] text-center text-white">
-                      {months[currentMonth]} {currentYear}
-                    </h2>
+                    <div className="relative">
+                      {isDatePickerOpen && (
+                        <div
+                          className="fixed inset-0 z-40 bg-black/5"
+                          onClick={() => setIsDatePickerOpen(false)}
+                        />
+                      )}
+                      <h2
+                        onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                        className="text-lg font-semibold min-w-[140px] text-center text-white cursor-pointer hover:text-emerald-400 transition-colors flex items-center justify-center gap-2 group relative z-50 px-4 py-1 rounded-lg hover:bg-white/5"
+                      >
+                        {months[currentMonth]} {currentYear}
+                        <ChevronDown size={16} className={`text-gray-500 group-hover:text-emerald-400 transition-transform ${isDatePickerOpen ? 'rotate-180' : ''}`} />
+                      </h2>
+
+                      {isDatePickerOpen && (
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] p-4 z-50 animate-in fade-in zoom-in duration-200">
+                          <div className="flex items-center justify-between mb-4 px-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCurrentYear(y => y - 1); }}
+                              className="p-2 hover:bg-white/10 rounded-xl transition-all text-gray-400 hover:text-white"
+                            >
+                              <ChevronLeft size={18} />
+                            </button>
+                            <span className="font-bold text-white text-xl tracking-tight">{currentYear}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setCurrentYear(y => y + 1); }}
+                              className="p-2 hover:bg-white/10 rounded-xl transition-all text-gray-400 hover:text-white"
+                            >
+                              <ChevronRight size={18} />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {months.map((m, idx) => (
+                              <button
+                                key={m}
+                                onClick={() => {
+                                  setCurrentMonth(idx);
+                                  setIsDatePickerOpen(false);
+                                }}
+                                className={`py-2.5 text-xs font-semibold rounded-xl transition-all ${currentMonth === idx
+                                    ? theme.primary + ' text-white shadow-lg shadow-emerald-500/20'
+                                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                  }`}
+                              >
+                                {m.substring(0, 3)}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="mt-4 pt-3 border-t border-white/5 flex justify-center">
+                            <button
+                              onClick={() => {
+                                const now = new Date();
+                                setCurrentMonth(now.getMonth());
+                                setCurrentYear(now.getFullYear());
+                                setIsDatePickerOpen(false);
+                              }}
+                              className="text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:text-emerald-400 transition-colors"
+                            >
+                              Jump to Today
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <button onClick={handleNextMonth} className="p-2 hover:bg-gray-800 rounded-lg text-gray-400">
                       <ChevronRight size={20} />
                     </button>
