@@ -35,6 +35,10 @@ declare global {
             ensureDir: (path: string) => Promise<{ success: boolean; error?: string }>;
             saveReceipt: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
             showDirectoryDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
+            getAppVersion: () => Promise<string>;
+            onUpdateStatus: (callback: (data: { status: string; data?: any }) => void) => () => void;
+            checkForUpdates: () => Promise<{ status: string; data?: any }>;
+            quitAndInstall: () => Promise<void>;
         };
     }
 }

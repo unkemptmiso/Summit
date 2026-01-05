@@ -49,7 +49,8 @@ import {
   Sun,
   Moon,
   Sparkles,
-  Database
+  Database,
+  RotateCcw
 } from 'lucide-react';
 
 
@@ -513,6 +514,7 @@ const App: React.FC = () => {
   const [secInputConfirm, setSecInputConfirm] = useState("");
   const [secError, setSecError] = useState("");
 
+
   // Electron Auto-Load Effect
   useEffect(() => {
     const loadLastFile = async () => {
@@ -636,8 +638,56 @@ const App: React.FC = () => {
     passwordHash
   ]);
 
+  // --- Undo History ---
+  const [history, setHistory] = useState<AppData[]>([]);
+  const isInternalUpdate = useRef(false);
+  const lastStateRef = useRef<string>("");
 
-  const loadData = (data: AppData | EncryptedData) => {
+  useEffect(() => {
+    if (isInternalUpdate.current) return;
+
+    const currentStateStr = JSON.stringify(appData);
+    if (currentStateStr === lastStateRef.current) return;
+
+    // We use a longer debounce for history to avoid capturing every keystroke
+    const timer = setTimeout(() => {
+      setHistory(prev => {
+        // Only add if different from the last history entry
+        const lastEntry = prev[prev.length - 1];
+        if (lastEntry && JSON.stringify(lastEntry) === currentStateStr) return prev;
+        return [...prev, appData].slice(-50);
+      });
+      lastStateRef.current = currentStateStr;
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [appData]);
+
+  const handleUndo = () => {
+    if (history.length <= 1) {
+      setToast({ message: "Nothing to undo", show: true });
+      return;
+    }
+
+    isInternalUpdate.current = true;
+    const newHistory = [...history];
+    newHistory.pop(); // Remove current state
+    const prevState = newHistory[newHistory.length - 1]; // Get previous state
+
+    if (prevState) {
+      setHistory(newHistory);
+      loadData(prevState, true); // silent load
+      setToast({ message: "Action undone", show: true });
+      lastStateRef.current = JSON.stringify(prevState);
+    }
+
+    setTimeout(() => {
+      isInternalUpdate.current = false;
+    }, 500);
+  };
+
+
+  const loadData = (data: AppData | EncryptedData, silent: boolean = false) => {
     // Check if data is encrypted
     if ((data as EncryptedData).isEncrypted) {
       setPendingEncryptedData(data as EncryptedData);
@@ -708,7 +758,7 @@ const App: React.FC = () => {
       setIsLocked(true); // Lock on load if enabled
     }
 
-    setToast({ message: "Data loaded successfully", show: true });
+    if (!silent) setToast({ message: "Data loaded successfully", show: true });
   };
 
   // Auto-Save Effect
@@ -5980,6 +6030,32 @@ const App: React.FC = () => {
                           >
                             <Download size={16} />
                             <span>EXPORT ALL</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-800 pt-8">
+                      <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><RotateCcw size={20} className="text-amber-500" /> Undo History</h3>
+                      <p className="text-gray-500 text-sm mb-6">Revert the application to its previous state. History is cleared when the app is closed.</p>
+
+                      <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h4 className="text-white font-bold mb-1">Undo Latest Change</h4>
+                            <p className="text-gray-500 text-sm">Restores the snapshot taken before the most recent major update.</p>
+                            <p className="text-gray-600 text-[10px] mt-2 font-mono">{history.length} snapshots available</p>
+                          </div>
+                          <button
+                            onClick={handleUndo}
+                            disabled={history.length <= 1}
+                            className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-bold text-xs transition-all ${history.length > 1
+                              ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20'
+                              : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
+                              }`}
+                          >
+                            <RotateCcw size={16} />
+                            <span>UNDO ACTION</span>
                           </button>
                         </div>
                       </div>
