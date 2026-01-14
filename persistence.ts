@@ -92,6 +92,8 @@ export interface AppData {
     drivingLog: DrivingLogEntry[];
     drivingPurposes: string[];
     yearlyMileageRates?: Record<string, number>;
+    yearlyOdometerStart?: Record<string, number>;
+    yearlyOdometerEnd?: Record<string, number>;
 
     // Chart
     chartToggles: {

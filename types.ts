@@ -7,6 +7,7 @@ export interface Transaction {
   category: string;
   method: string;
   receiptPath?: string;
+  receiptPaths?: string[];
   createdAt?: number;
 }
 

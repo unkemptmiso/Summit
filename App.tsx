@@ -50,8 +50,6 @@ import {
   Moon,
   Sparkles,
   Database,
-  Sparkles,
-  Database,
   RotateCcw,
   AlertCircle,
   Info
@@ -397,6 +395,8 @@ const App: React.FC = () => {
     '2024': 0.67,
     '2025': 0.70
   });
+  const [yearlyOdometerStart, setYearlyOdometerStart] = useState<Record<string, number>>({});
+  const [yearlyOdometerEnd, setYearlyOdometerEnd] = useState<Record<string, number>>({});
   const [hiddenTabs, setHiddenTabs] = useState<string[]>([]);
 
   // Asset Editing State
@@ -608,6 +608,7 @@ const App: React.FC = () => {
     businessRecurringExpenses, businessSearchQuery,
     incomeStreams, incomeHistory, yearlyIncomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, yearlyMileageRates,
+    yearlyOdometerStart, yearlyOdometerEnd,
     scratchPadUrl,
     chartToggles,
     customColors,
@@ -629,6 +630,7 @@ const App: React.FC = () => {
     businessRecurringExpenses, businessSearchQuery,
     incomeStreams, incomeHistory, yearlyIncomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, yearlyMileageRates,
+    yearlyOdometerStart, yearlyOdometerEnd,
     scratchPadUrl,
     chartToggles,
     customColors,
@@ -737,6 +739,8 @@ const App: React.FC = () => {
     if (appData.drivingLog) setDrivingLog(appData.drivingLog);
     if (appData.drivingPurposes) setDrivingPurposes(appData.drivingPurposes);
     if (appData.yearlyMileageRates) setYearlyMileageRates(appData.yearlyMileageRates);
+    if (appData.yearlyOdometerStart) setYearlyOdometerStart(appData.yearlyOdometerStart);
+    if (appData.yearlyOdometerEnd) setYearlyOdometerEnd(appData.yearlyOdometerEnd);
 
     // Chart
     if (appData.chartToggles) setChartToggles(appData.chartToggles);
@@ -1630,7 +1634,7 @@ const App: React.FC = () => {
     setTransactions([...transactions, newTx]);
   };
 
-  const updateTransaction = (id: number | string, field: keyof Transaction, value: string) => {
+  const updateTransaction = (id: number | string, field: keyof Transaction, value: any) => {
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
@@ -2096,7 +2100,7 @@ const App: React.FC = () => {
     setBusinessTransactions([...businessTransactions, newTx]);
   };
 
-  const updateBusinessTransaction = (id: number | string, field: keyof Transaction, value: string) => {
+  const updateBusinessTransaction = (id: number | string, field: keyof Transaction, value: any) => {
     setBusinessTransactions(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
@@ -2150,7 +2154,16 @@ const App: React.FC = () => {
       const description = (transaction.description || "Untitled").replace(/[^a-z0-9]/gi, '_').substring(0, 50);
       const amount = transaction.amount || "0";
       const ext = file.name.split('.').pop();
-      const filename = `${formattedDate} - ${description} - ${amount}.${ext}`;
+
+      // Determine existing receipts to set Page number
+      let existingPaths = transaction.receiptPaths || [];
+      // Migrate legacy receiptPath if it exists and isn't in receiptPaths
+      if (transaction.receiptPath && !existingPaths.includes(transaction.receiptPath)) {
+        existingPaths = [transaction.receiptPath, ...existingPaths];
+      }
+
+      const nextPageIndex = existingPaths.length + 1;
+      const filename = `${formattedDate} - ${description} - ${amount} - Page ${nextPageIndex}.${ext}`;
 
       // Folder and Save
       let folderPath = isBusiness
@@ -2164,9 +2177,13 @@ const App: React.FC = () => {
       await window.electronAPI.saveReceipt(filePath, buffer);
 
       // Update Transaction
+      const newPaths = [...existingPaths, filePath];
       if (isBusiness) {
+        updateBusinessTransaction(transactionId, 'receiptPaths', newPaths);
+        // Clear legacy path to avoid confusion, but we keep it in the interface for safety
         updateBusinessTransaction(transactionId, 'receiptPath', filePath);
       } else {
+        updateTransaction(transactionId, 'receiptPaths', newPaths);
         updateTransaction(transactionId, 'receiptPath', filePath);
       }
 
@@ -2663,11 +2680,16 @@ const App: React.FC = () => {
     const currentRate = yearlyMileageRates[currentYear.toString()] || 0.67;
     const totalDeduction = totalYearlyMileage * currentRate;
 
+    const totalMilesDriven = (yearlyOdometerEnd[currentYear] || 0) - (yearlyOdometerStart[currentYear] || 0);
+    const businessMiles = totalYearlyMileage;
+
     const csvContent = [
       headers.join(","),
       ...csvRows,
       "",
-      `TOTAL MILES FOR ${currentYear},${totalYearlyMileage.toFixed(2)}`,
+      `TOTAL MILES DRIVEN (ODOMETER),${totalMilesDriven.toFixed(2)}`,
+      `BUSINESS MILES,${businessMiles.toFixed(2)}`,
+      "",
       `DEDUCTION RATE,$${currentRate.toFixed(3)}/mile`,
       `TOTAL TAX DEDUCTION,$${totalDeduction.toFixed(2)}`
     ].join("\n");
@@ -4754,7 +4776,7 @@ const App: React.FC = () => {
                         <tbody className="divide-y divide-gray-800/50">
                           {displayedTransactions.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="text-center py-8 text-gray-500 italic">No transactions found.</td>
+                              <td colSpan={7} className="text-center py-8 text-gray-500 italic">No transactions found.</td>
                             </tr>
                           ) : (
                             displayedTransactions.map(t => (
@@ -4786,35 +4808,49 @@ const App: React.FC = () => {
                                   onDragOver={(e) => e.preventDefault()}
                                   onDrop={(e) => {
                                     e.preventDefault();
-                                    const file = e.dataTransfer.files[0];
-                                    if (file) handleReceiptUpload(file, t.id, false);
+                                    Array.from(e.dataTransfer.files).forEach((file) => {
+                                      handleReceiptUpload(file as File, t.id, false);
+                                    });
                                   }}
                                   onPaste={(e) => {
-                                    const file = e.clipboardData.files[0];
-                                    if (file) handleReceiptUpload(file, t.id, false);
+                                    Array.from(e.clipboardData.files).forEach((file) => {
+                                      handleReceiptUpload(file as File, t.id, false);
+                                    });
                                   }}
                                 >
-                                  {t.receiptPath ? (
-                                    <div className="flex items-center justify-center h-11 w-full px-2" title={t.receiptPath}>
-                                      <div className="flex items-center space-x-1 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/50 cursor-pointer" onClick={() => {/* Open file if possible */ }}>
-                                        <Receipt size={12} className="text-blue-400" />
-                                        <span className="text-[10px] text-blue-300 truncate max-w-[80px]">{t.receiptPath.split('/').pop()}</span>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            updateTransaction(t.id, 'receiptPath', '');
-                                          }}
-                                          className="hover:text-red-400 text-blue-900 ml-1"
-                                        >
-                                          <X size={10} />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
-                                      <span className="hidden group-hover/cell:inline">Drag / Paste</span>
-                                    </div>
-                                  )}
+                                  <div className="flex flex-col items-center justify-center min-h-[44px] w-full px-2 py-1 gap-1">
+                                    {(() => {
+                                      let paths = [...(t.receiptPaths || [])];
+                                      if (t.receiptPath && !paths.includes(t.receiptPath)) {
+                                        paths = [t.receiptPath, ...paths];
+                                      }
+
+                                      if (paths.length > 0) {
+                                        return paths.map((p, idx) => (
+                                          <div key={idx} className="flex items-center space-x-1 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-900/50 w-full group/receipt" title={p}>
+                                            <Receipt size={10} className="text-blue-400 shrink-0" />
+                                            <span className="text-[9px] text-blue-300 truncate flex-1">{p.split('/').pop()}</span>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const newPaths = paths.filter((_, i) => i !== idx);
+                                                updateTransaction(t.id, 'receiptPaths', newPaths);
+                                                updateTransaction(t.id, 'receiptPath', newPaths[0] || '');
+                                              }}
+                                              className="opacity-0 group-hover/receipt:opacity-100 hover:text-red-400 text-blue-900 transition-opacity"
+                                            >
+                                              <X size={10} />
+                                            </button>
+                                          </div>
+                                        ));
+                                      }
+                                      return (
+                                        <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
+                                          <span className="hidden group-hover/cell:inline">Drag / Paste</span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 </td>
                                 <td className="p-0 text-center">
                                   <button onClick={() => setTransactions(transactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
@@ -5037,7 +5073,7 @@ const App: React.FC = () => {
               )}
 
               {activeTab === 'business' && (
-                <>
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-2 bg-[#0d0d0d] rounded-3xl border border-gray-800 p-6 shadow-xl">
                       <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Business Spend Breakdown</h3>
@@ -5149,7 +5185,7 @@ const App: React.FC = () => {
                         <tbody className="divide-y divide-gray-800/50">
                           {displayedBusinessTransactions.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="text-center py-8 text-gray-500 italic">No business transactions found.</td>
+                              <td colSpan={7} className="text-center py-8 text-gray-500 italic">No business transactions found.</td>
                             </tr>
                           ) : (
                             displayedBusinessTransactions.map(t => (
@@ -5181,35 +5217,49 @@ const App: React.FC = () => {
                                   onDragOver={(e) => e.preventDefault()}
                                   onDrop={(e) => {
                                     e.preventDefault();
-                                    const file = e.dataTransfer.files[0];
-                                    if (file) handleReceiptUpload(file, t.id);
+                                    Array.from(e.dataTransfer.files).forEach((file) => {
+                                      handleReceiptUpload(file as File, t.id, true);
+                                    });
                                   }}
                                   onPaste={(e) => {
-                                    const file = e.clipboardData.files[0];
-                                    if (file) handleReceiptUpload(file, t.id);
+                                    Array.from(e.clipboardData.files).forEach((file) => {
+                                      handleReceiptUpload(file as File, t.id, true);
+                                    });
                                   }}
                                 >
-                                  {t.receiptPath ? (
-                                    <div className="flex items-center justify-center h-11 w-full px-2" title={t.receiptPath}>
-                                      <div className="flex items-center space-x-1 bg-blue-900/20 px-2 py-1 rounded border border-blue-900/50 cursor-pointer" onClick={() => {/* Open file if possible */ }}>
-                                        <Receipt size={12} className="text-blue-400" />
-                                        <span className="text-[10px] text-blue-300 truncate max-w-[80px]">{t.receiptPath.split('/').pop()}</span>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            updateBusinessTransaction(t.id, 'receiptPath', '');
-                                          }}
-                                          className="hover:text-red-400 text-blue-900 ml-1"
-                                        >
-                                          <X size={10} />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
-                                      <span className="hidden group-hover/cell:inline">Drag / Paste</span>
-                                    </div>
-                                  )}
+                                  <div className="flex flex-col items-center justify-center min-h-[44px] w-full px-2 py-1 gap-1">
+                                    {(() => {
+                                      let paths = [...(t.receiptPaths || [])];
+                                      if (t.receiptPath && !paths.includes(t.receiptPath)) {
+                                        paths = [t.receiptPath, ...paths];
+                                      }
+
+                                      if (paths.length > 0) {
+                                        return paths.map((p, idx) => (
+                                          <div key={idx} className="flex items-center space-x-1 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-900/50 w-full group/receipt" title={p}>
+                                            <Receipt size={10} className="text-blue-400 shrink-0" />
+                                            <span className="text-[9px] text-blue-300 truncate flex-1">{p.split('/').pop()}</span>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const newPaths = paths.filter((_, i) => i !== idx);
+                                                updateBusinessTransaction(t.id, 'receiptPaths', newPaths);
+                                                updateBusinessTransaction(t.id, 'receiptPath', newPaths[0] || '');
+                                              }}
+                                              className="opacity-0 group-hover/receipt:opacity-100 hover:text-red-400 text-blue-900 transition-opacity"
+                                            >
+                                              <X size={10} />
+                                            </button>
+                                          </div>
+                                        ));
+                                      }
+                                      return (
+                                        <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
+                                          <span className="hidden group-hover/cell:inline">Drag / Paste</span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 </td>
                                 <td className="p-0 text-center">
                                   <button onClick={() => setBusinessTransactions(businessTransactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
@@ -5428,7 +5478,7 @@ const App: React.FC = () => {
                       </div>
                     )}
                   </div>
-                </>
+                </div>
               )}
 
               {activeTab === 'assets' && (
@@ -5904,6 +5954,28 @@ const App: React.FC = () => {
                       <p className="text-gray-500 mt-1">Spreadsheet entry for business mileage.</p>
                     </div>
                     <div className="flex items-center space-x-4">
+                      <div className="flex flex-col space-y-1">
+                        <div className="relative group">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-500 uppercase pointer-events-none tracking-tighter">Start</span>
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={yearlyOdometerStart[currentYear] || ''}
+                            onChange={(e) => setYearlyOdometerStart(prev => ({ ...prev, [currentYear]: parseFloat(e.target.value) || 0 }))}
+                            className="bg-gray-900/50 border border-gray-800 rounded-lg py-1 pl-12 pr-2 text-[10px] font-bold text-white w-28 outline-none focus:border-blue-500/50 transition-all placeholder-gray-700"
+                          />
+                        </div>
+                        <div className="relative group">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-gray-500 uppercase pointer-events-none tracking-tighter">End</span>
+                          <input
+                            type="number"
+                            placeholder="0"
+                            value={yearlyOdometerEnd[currentYear] || ''}
+                            onChange={(e) => setYearlyOdometerEnd(prev => ({ ...prev, [currentYear]: parseFloat(e.target.value) || 0 }))}
+                            className="bg-gray-900/50 border border-gray-800 rounded-lg py-1 pl-12 pr-2 text-[10px] font-bold text-white w-28 outline-none focus:border-blue-500/50 transition-all placeholder-gray-700"
+                          />
+                        </div>
+                      </div>
                       <input type="file" ref={drivingLogFileInputRef} onChange={handleDrivingLogImport} className="hidden" accept=".csv" />
                       <button onClick={() => drivingLogFileInputRef.current?.click()} className="flex items-center space-x-2 px-6 py-3 bg-gray-900 border border-gray-800 rounded-2xl text-xs font-bold hover:bg-gray-800 text-gray-300 transition-colors shadow-lg">
                         <FileUp size={18} /> <span>IMPORT CSV</span>
@@ -5914,26 +5986,26 @@ const App: React.FC = () => {
                       <button onClick={handleAddDrivingLog} className={`flex items-center space-x-2 px-6 py-3 ${theme.primary} rounded-2xl text-white font-bold shadow-lg hover:opacity-90 transition-opacity`}>
                         <Plus size={18} /> <span>ADD ENTRY</span>
                       </button>
+                    </div>
+                  </div>
 
-                      <div className={`bg-gray-900/30 ${theme.text} px-6 py-3 rounded-2xl border ${theme.border}/30 flex items-center gap-4`}>
-                        <div>
-                          <p className="text-xs font-bold uppercase tracking-widest opacity-70">Tax Deduction (YTD)</p>
-                          <p className="text-2xl font-bold">
-                            ${(totalYearlyMileage * (yearlyMileageRates[currentYear.toString()] || 0.67)).toFixed(2)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-auto">
-                          <span className="text-xs text-gray-500">Rate:</span>
-                          <input
-                            type="number"
-                            step="0.001"
-                            value={yearlyMileageRates[currentYear.toString()] || 0.67}
-                            onChange={(e) => setYearlyMileageRates(prev => ({ ...prev, [currentYear.toString()]: parseFloat(e.target.value) || 0.67 }))}
-                            className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm font-mono text-white outline-none focus:border-blue-500"
-                          />
-                          <span className="text-xs text-gray-500">/mi</span>
-                        </div>
-                      </div>
+                  <div className={`bg-gray-900/30 ${theme.text} px-6 py-3 rounded-2xl border ${theme.border}/30 flex items-center gap-4`}>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest opacity-70">Tax Deduction (YTD)</p>
+                      <p className="text-2xl font-bold">
+                        ${(totalYearlyMileage * (yearlyMileageRates[currentYear.toString()] || 0.67)).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-xs text-gray-500">Rate:</span>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={yearlyMileageRates[currentYear.toString()] || 0.67}
+                        onChange={(e) => setYearlyMileageRates(prev => ({ ...prev, [currentYear.toString()]: parseFloat(e.target.value) || 0.67 }))}
+                        className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm font-mono text-white outline-none focus:border-blue-500"
+                      />
+                      <span className="text-xs text-gray-500">/mi</span>
                     </div>
                   </div>
 
@@ -7162,9 +7234,10 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
-          )}
-        </main>
-      </div>
+          )
+          }
+        </main >
+      </div >
 
       {/* History Comment Modal */}
       {
@@ -7261,34 +7334,37 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
+        )
+      }
 
       {/* Toast Notification */}
       {/* Toast Notification */}
-      {toast && toast.show && (
-        <div className={`fixed bottom-8 right-8 border px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 animate-in slide-in-from-bottom-4 fade-in duration-300 z-50 
+      {
+        toast && toast.show && (
+          <div className={`fixed bottom-8 right-8 border px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 animate-in slide-in-from-bottom-4 fade-in duration-300 z-50 
           ${toast.type === 'error' ? 'bg-red-950/90 border-red-900' : toast.type === 'info' ? 'bg-blue-950/90 border-blue-900' : 'bg-[#0d0d0d] border-gray-700'}`}>
 
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center 
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center 
             ${toast.type === 'error' ? 'bg-red-600' : toast.type === 'info' ? 'bg-blue-600' : theme.primary}`}>
 
-            {toast.type === 'error' ? (
-              <AlertCircle size={20} className="text-white" />
-            ) : toast.type === 'info' ? (
-              <Info size={20} className="text-white" />
-            ) : (
-              <Check size={20} className="text-white" />
-            )}
+              {toast.type === 'error' ? (
+                <AlertCircle size={20} className="text-white" />
+              ) : toast.type === 'info' ? (
+                <Info size={20} className="text-white" />
+              ) : (
+                <Check size={20} className="text-white" />
+              )}
+            </div>
+            <div>
+              <p className="font-bold text-sm text-white">
+                {toast.type === 'error' ? 'Error' : toast.type === 'info' ? 'Info' : 'Success'}
+              </p>
+              <p className="text-gray-300 text-xs">{toast.message}</p>
+            </div>
+            <button onClick={() => setToast(null)} className="text-gray-400 hover:text-white"><X size={16} /></button>
           </div>
-          <div>
-            <p className="font-bold text-sm text-white">
-              {toast.type === 'error' ? 'Error' : toast.type === 'info' ? 'Info' : 'Success'}
-            </p>
-            <p className="text-gray-300 text-xs">{toast.message}</p>
-          </div>
-          <button onClick={() => setToast(null)} className="text-gray-400 hover:text-white"><X size={16} /></button>
-        </div>
-      )}
+        )
+      }
     </>
   );
 };
