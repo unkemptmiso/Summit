@@ -592,6 +592,15 @@ const App: React.FC = () => {
     }
   };
 
+  const handleOpenUpdateFolder = async () => {
+    if (window.electronAPI) {
+      const res = await window.electronAPI.openUpdateFolder();
+      if (!res.success) {
+        setToast({ message: `Could not open folder: ${res.error}`, show: true, type: 'error' });
+      }
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const businessFileInputRef = useRef<HTMLInputElement>(null);
   const drivingLogFileInputRef = useRef<HTMLInputElement>(null);
@@ -6463,28 +6472,52 @@ const App: React.FC = () => {
                               {updateStatus === 'available' && "New update available!"}
                               {updateStatus === 'downloaded' && "Update downloaded and ready to install."}
                               {updateStatus === 'not-available' && "You are up to date."}
-                              {updateStatus === 'progress' && "Downloading update..."}
+                              {updateStatus === 'progress' && (
+                                <span>
+                                  Downloading: {updateInfo && typeof updateInfo.percent === 'number' ? Math.floor(updateInfo.percent) : 0}%
+                                </span>
+                              )}
                               {(updateStatus === 'idle' || updateStatus === 'error') && "System is ready."}
                             </p>
                           </div>
 
                           {updateStatus === 'downloaded' ? (
-                            <button
-                              onClick={handleQuitAndInstall}
-                              className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg shadow-green-900/20"
-                            >
-                              <Download size={16} />
-                              <span>RESTART & INSTALL</span>
-                            </button>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={handleQuitAndInstall}
+                                className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg shadow-green-900/20"
+                              >
+                                <Download size={16} />
+                                <span>RESTART & INSTALL</span>
+                              </button>
+                              <button
+                                onClick={handleOpenUpdateFolder}
+                                className="flex items-center justify-center w-12 h-12 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-xl transition-all border border-gray-700"
+                                title="Show downloaded file"
+                              >
+                                <FileUp size={16} />
+                              </button>
+                            </div>
                           ) : (
-                            <button
-                              onClick={handleCheckForUpdates}
-                              disabled={updateStatus === 'checking' || updateStatus === 'downloaded' || updateStatus === 'progress'}
-                              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg ${updateStatus === 'checking' || updateStatus === 'progress' ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'}`}
-                            >
-                              <Repeat size={16} className={updateStatus === 'checking' || updateStatus === 'progress' ? 'animate-spin' : ''} />
-                              <span>{updateStatus === 'checking' ? 'CHECKING...' : updateStatus === 'progress' ? 'DOWNLOADING...' : 'CHECK FOR UPDATES'}</span>
-                            </button>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={handleCheckForUpdates}
+                                disabled={updateStatus === 'checking' || updateStatus === 'downloaded' || updateStatus === 'progress'}
+                                className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-bold text-xs transition-all shadow-lg ${updateStatus === 'checking' || updateStatus === 'progress' ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20'}`}
+                              >
+                                <Repeat size={16} className={updateStatus === 'checking' || updateStatus === 'progress' ? 'animate-spin' : ''} />
+                                <span>{updateStatus === 'checking' ? 'CHECKING...' : updateStatus === 'progress' ? 'DOWNLOADING...' : 'CHECK FOR UPDATES'}</span>
+                              </button>
+                              {updateStatus === 'progress' && (
+                                <button
+                                  onClick={handleOpenUpdateFolder}
+                                  className="flex items-center justify-center w-12 h-12 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-xl transition-all border border-gray-700"
+                                  title="Locate update package"
+                                >
+                                  <FileUp size={16} />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
 

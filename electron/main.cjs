@@ -1,7 +1,21 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
+
+// --- Logger Configuration ---
+const logFile = path.join(app.getPath('userData'), 'update-log.txt');
+function log(msg) {
+    const timestamp = new Date().toISOString();
+    const logMsg = `[${timestamp}] ${msg}\n`;
+    console.log(logMsg);
+    try {
+        fs.appendFileSync(logFile, logMsg);
+    } catch (e) {
+        console.error('Failed to write to log file', e);
+    }
+}
+log('App started. Version: ' + app.getVersion());
 
 function createWindow() {
     const win = new BrowserWindow({
@@ -61,7 +75,25 @@ ipcMain.handle('check-for-updates', async () => {
 });
 
 ipcMain.handle('quit-and-install', () => {
+    log('IPC: quit-and-install requested');
     autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('open-update-folder', async () => {
+    const updateCacheDir = path.join(app.getPath('userData'), '__update__');
+    log('IPC: Opening update folder: ' + updateCacheDir);
+    if (fs.existsSync(updateCacheDir)) {
+        shell.openPath(updateCacheDir);
+        return { success: true };
+    }
+    return { success: false, error: 'Update folder not found' };
+});
+
+ipcMain.handle('get-update-log', async () => {
+    if (fs.existsSync(logFile)) {
+        return fs.readFileSync(logFile, 'utf8');
+    }
+    return 'Log file not found';
 });
 
 ipcMain.handle('get-app-version', () => {
@@ -75,12 +107,30 @@ const sendUpdateStatus = (status, data) => {
     });
 };
 
-autoUpdater.on('checking-for-update', () => sendUpdateStatus('checking'));
-autoUpdater.on('update-available', (info) => sendUpdateStatus('available', info));
-autoUpdater.on('update-not-available', (info) => sendUpdateStatus('not-available', info));
-autoUpdater.on('error', (err) => sendUpdateStatus('error', err.toString()));
-autoUpdater.on('download-progress', (progressObj) => sendUpdateStatus('progress', progressObj));
-autoUpdater.on('update-downloaded', (info) => sendUpdateStatus('downloaded', info));
+autoUpdater.on('checking-for-update', () => {
+    log('AutoUpdater: Checking for update...');
+    sendUpdateStatus('checking');
+});
+autoUpdater.on('update-available', (info) => {
+    log('AutoUpdater: Update available: ' + JSON.stringify(info));
+    sendUpdateStatus('available', info);
+});
+autoUpdater.on('update-not-available', (info) => {
+    log('AutoUpdater: Update not available: ' + JSON.stringify(info));
+    sendUpdateStatus('not-available', info);
+});
+autoUpdater.on('error', (err) => {
+    log('AutoUpdater: Error: ' + err.toString());
+    sendUpdateStatus('error', err.toString());
+});
+autoUpdater.on('download-progress', (progressObj) => {
+    log(`AutoUpdater: Download progress: ${Math.floor(progressObj.percent)}% (${progressObj.transferred}/${progressObj.total})`);
+    sendUpdateStatus('progress', progressObj);
+});
+autoUpdater.on('update-downloaded', (info) => {
+    log('AutoUpdater: Update downloaded: ' + JSON.stringify(info));
+    sendUpdateStatus('downloaded', info);
+});
 
 
 // --- IPC Handlers for Persistence ---

@@ -1,7 +1,7 @@
 {
   "name": "summit",
   "private": true,
-  "version": "0.0.15",
+  "version": "0.0.16",
   "description": "Summit Finance App",
   "author": "unkemptmiso",
   "type": "module",
