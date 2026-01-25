@@ -29,6 +29,8 @@ jobs:
         run: npm run dist
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # NOTE: To enable automatic updates on macOS, you MUST add CSC_LINK and CSC_KEY_PASSWORD
+          # to your GitHub Secrets and remove the line below.
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload Sample Data

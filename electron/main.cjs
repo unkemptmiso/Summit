@@ -1,14 +1,14 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
-const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 
+// --- Logger Configuration ---
 let logFile;
 function log(msg) {
-    if (!logFile) return;
     const timestamp = new Date().toISOString();
     const logMsg = `[${timestamp}] ${msg}\n`;
     console.log(logMsg);
+    if (!logFile) return;
     try {
         fs.appendFileSync(logFile, logMsg);
     } catch (e) {
@@ -32,7 +32,6 @@ function createWindow() {
     const isDev = !app.isPackaged;
     if (isDev) {
         win.loadURL('http://localhost:3000');
-        // win.webContents.openDevTools();
     } else {
         win.loadFile(path.join(__dirname, '../dist/index.html'));
     }
@@ -43,9 +42,79 @@ app.whenReady().then(() => {
     log('App started. Version: ' + app.getVersion());
     createWindow();
 
-    // Check for updates on startup
-    if (app.isPackaged) {
-        autoUpdater.checkForUpdatesAndNotify();
+    // Lazy load autoUpdater
+    try {
+        const { autoUpdater } = require('electron-updater');
+
+        // Forward autoUpdater events to renderer
+        const sendUpdateStatus = (status, data) => {
+            BrowserWindow.getAllWindows().forEach(win => {
+                win.webContents.send('update-status', { status, data });
+            });
+        };
+
+        autoUpdater.on('checking-for-update', () => {
+            log('AutoUpdater: Checking for update...');
+            sendUpdateStatus('checking');
+        });
+        autoUpdater.on('update-available', (info) => {
+            log('AutoUpdater: Update available: ' + JSON.stringify(info));
+            sendUpdateStatus('available', info);
+        });
+        autoUpdater.on('update-not-available', (info) => {
+            log('AutoUpdater: Update not available: ' + JSON.stringify(info));
+            sendUpdateStatus('not-available', info);
+        });
+        autoUpdater.on('error', (err) => {
+            log('AutoUpdater: Error: ' + err.toString());
+            sendUpdateStatus('error', err.toString());
+        });
+        autoUpdater.on('download-progress', (progressObj) => {
+            log(`AutoUpdater: Download progress: ${Math.floor(progressObj.percent)}%`);
+            sendUpdateStatus('progress', progressObj);
+        });
+        autoUpdater.on('update-downloaded', (info) => {
+            log('AutoUpdater: Update downloaded: ' + JSON.stringify(info));
+            sendUpdateStatus('downloaded', info);
+        });
+
+        if (app.isPackaged) {
+            autoUpdater.checkForUpdatesAndNotify();
+        }
+
+        ipcMain.handle('check-for-updates', async () => {
+            if (!app.isPackaged) return { status: 'dev-mode' };
+            try {
+                return await autoUpdater.checkForUpdates();
+            } catch (error) {
+                log('Manual check error: ' + error.message);
+                throw error;
+            }
+        });
+
+        ipcMain.handle('quit-and-install', () => {
+            log('IPC: quit-and-install requested');
+            autoUpdater.quitAndInstall();
+        });
+
+        ipcMain.handle('open-update-folder', async () => {
+            const updateCacheDir = path.join(app.getPath('userData'), '__update__');
+            if (fs.existsSync(updateCacheDir)) {
+                shell.openPath(updateCacheDir);
+                return { success: true };
+            }
+            return { success: false, error: 'Update folder not found' };
+        });
+
+        ipcMain.handle('get-update-log', async () => {
+            if (fs.existsSync(logFile)) {
+                return fs.readFileSync(logFile, 'utf8');
+            }
+            return 'Log file not found';
+        });
+
+    } catch (e) {
+        log('Failed to init autoUpdater: ' + e.message);
     }
 
     app.on('activate', () => {
@@ -60,79 +129,6 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
-
-// --- Auto Updater IPC ---
-ipcMain.handle('check-for-updates', async () => {
-    if (!app.isPackaged) {
-        return { status: 'dev-mode' };
-    }
-    try {
-        const result = await autoUpdater.checkForUpdates();
-        return { status: 'checking', result };
-    } catch (error) {
-        console.error('Failed to check for updates:', error);
-        throw error;
-    }
-});
-
-ipcMain.handle('quit-and-install', () => {
-    log('IPC: quit-and-install requested');
-    autoUpdater.quitAndInstall();
-});
-
-ipcMain.handle('open-update-folder', async () => {
-    const updateCacheDir = path.join(app.getPath('userData'), '__update__');
-    log('IPC: Opening update folder: ' + updateCacheDir);
-    if (fs.existsSync(updateCacheDir)) {
-        shell.openPath(updateCacheDir);
-        return { success: true };
-    }
-    return { success: false, error: 'Update folder not found' };
-});
-
-ipcMain.handle('get-update-log', async () => {
-    if (fs.existsSync(logFile)) {
-        return fs.readFileSync(logFile, 'utf8');
-    }
-    return 'Log file not found';
-});
-
-ipcMain.handle('get-app-version', () => {
-    return app.getVersion();
-});
-
-// Forward autoUpdater events to renderer
-const sendUpdateStatus = (status, data) => {
-    BrowserWindow.getAllWindows().forEach(win => {
-        win.webContents.send('update-status', { status, data });
-    });
-};
-
-autoUpdater.on('checking-for-update', () => {
-    log('AutoUpdater: Checking for update...');
-    sendUpdateStatus('checking');
-});
-autoUpdater.on('update-available', (info) => {
-    log('AutoUpdater: Update available: ' + JSON.stringify(info));
-    sendUpdateStatus('available', info);
-});
-autoUpdater.on('update-not-available', (info) => {
-    log('AutoUpdater: Update not available: ' + JSON.stringify(info));
-    sendUpdateStatus('not-available', info);
-});
-autoUpdater.on('error', (err) => {
-    log('AutoUpdater: Error: ' + err.toString());
-    sendUpdateStatus('error', err.toString());
-});
-autoUpdater.on('download-progress', (progressObj) => {
-    log(`AutoUpdater: Download progress: ${Math.floor(progressObj.percent)}% (${progressObj.transferred}/${progressObj.total})`);
-    sendUpdateStatus('progress', progressObj);
-});
-autoUpdater.on('update-downloaded', (info) => {
-    log('AutoUpdater: Update downloaded: ' + JSON.stringify(info));
-    sendUpdateStatus('downloaded', info);
-});
-
 
 // --- IPC Handlers for Persistence ---
 
@@ -198,14 +194,12 @@ ipcMain.handle('show-open-dialog', async () => {
 });
 
 ipcMain.handle('show-directory-dialog', async (event, title) => {
-    console.log('IPC: show-directory-dialog called');
     try {
         const win = BrowserWindow.fromWebContents(event.sender);
         const result = await dialog.showOpenDialog(win, {
             properties: ['openDirectory'],
             title: title || 'Select Folder'
         });
-        console.log('IPC: show-directory-dialog result:', result);
         return result;
     } catch (error) {
         console.error('IPC: show-directory-dialog error:', error);
@@ -247,5 +241,6 @@ ipcMain.handle('delete-file', async (event, filePath) => {
     }
 });
 
-
-
+ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
+});

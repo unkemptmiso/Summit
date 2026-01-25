@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   Trash2,
   FileUp,
+  ExternalLink,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
@@ -6788,6 +6789,14 @@ const App: React.FC = () => {
                                 <span>RESTART & INSTALL</span>
                               </button>
                               <button
+                                onClick={() => window.open('https://github.com/unkemptmiso/Summit/releases/latest', '_blank')}
+                                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all border border-gray-700 shadow-lg"
+                                title="Download manually if auto-install fails"
+                              >
+                                <ExternalLink size={16} />
+                                <span>MANUAL UPDATE</span>
+                              </button>
+                              <button
                                 onClick={handleOpenUpdateFolder}
                                 className="flex items-center justify-center w-12 h-12 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-xl transition-all border border-gray-700"
                                 title="Show downloaded file"
@@ -6804,6 +6813,13 @@ const App: React.FC = () => {
                               >
                                 <Repeat size={16} className={updateStatus === 'checking' || updateStatus === 'progress' ? 'animate-spin' : ''} />
                                 <span>{updateStatus === 'checking' ? 'CHECKING...' : updateStatus === 'progress' ? 'DOWNLOADING...' : 'CHECK FOR UPDATES'}</span>
+                              </button>
+                              <button
+                                onClick={() => window.open('https://github.com/unkemptmiso/Summit/releases/latest', '_blank')}
+                                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-bold text-xs transition-all border border-gray-700 shadow-lg"
+                              >
+                                <ExternalLink size={16} />
+                                <span>RELEASES</span>
                               </button>
                               {updateStatus === 'progress' && (
                                 <button
