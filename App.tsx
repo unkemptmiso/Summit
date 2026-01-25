@@ -398,6 +398,11 @@ const App: React.FC = () => {
   const [yearlyOdometerStart, setYearlyOdometerStart] = useState<Record<string, number>>({});
   const [yearlyOdometerEnd, setYearlyOdometerEnd] = useState<Record<string, number>>({});
   const [hiddenTabs, setHiddenTabs] = useState<string[]>([]);
+  const [yearlyComments, setYearlyComments] = useState<Record<string, string>>({});
+
+  const updateYearlyComment = (year: string, comment: string) => {
+    setYearlyComments(prev => ({ ...prev, [year]: comment }));
+  };
 
   // Asset Editing State
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -418,6 +423,7 @@ const App: React.FC = () => {
   const [newSettingsItemName, setNewSettingsItemName] = useState("");
 
   // History Expansion State
+  const [expandedYears, setExpandedYears] = useState<string[]>([]);
   const [expandedHistoryIndex, setExpandedHistoryIndex] = useState<number | null>(null);
 
   // History Comment Modal State
@@ -629,7 +635,8 @@ const App: React.FC = () => {
     colorMode,
     userName,
     isPasswordProtectionEnabled,
-    passwordHash
+    passwordHash,
+    yearlyComments
   }), [
     activeTab, currentTheme, appFontSize,
     currentYear, currentMonth,
@@ -651,7 +658,8 @@ const App: React.FC = () => {
     colorMode,
     userName,
     isPasswordProtectionEnabled,
-    passwordHash
+    passwordHash,
+    yearlyComments
   ]);
 
   // --- Undo History ---
@@ -770,6 +778,8 @@ const App: React.FC = () => {
     if (appData.businessReceiptsDir) setBusinessReceiptsDir(appData.businessReceiptsDir);
     if (appData.colorMode) setColorMode(appData.colorMode);
     if (appData.userName) setUserName(appData.userName);
+    if (appData.yearlyComments) setYearlyComments(appData.yearlyComments);
+
     if (appData.isPasswordProtectionEnabled) {
       setIsPasswordProtectionEnabled(appData.isPasswordProtectionEnabled);
       if (appData.passwordHash) setPasswordHash(appData.passwordHash);
@@ -969,6 +979,37 @@ const App: React.FC = () => {
       return d.getFullYear() === prevYear && d.getMonth() === prevMonth;
     });
   }, [transactions, currentYear, currentMonth]);
+
+  const groupedHistoryByYear = useMemo(() => {
+    const years: Record<string, MonthlyHistoryEntry[]> = {};
+    monthlyHistory.forEach(h => {
+      const year = h.sortKey ? h.sortKey.split('-')[0] : h.date.split(' ').pop() || 'Unknown';
+      if (!years[year]) years[year] = [];
+      years[year].push(h);
+    });
+    return Object.entries(years)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([year, months]) => {
+        // Sort months descending
+        const sortedMonths = months.sort((a, b) => (b.sortKey || b.date).localeCompare(a.sortKey || a.date));
+        // Year stats come from the latest month of the year
+        const latestMonth = sortedMonths[0];
+        // Year start/end net worth to show growth
+        const oldestMonth = sortedMonths[sortedMonths.length - 1];
+        const yearDiff = latestMonth.netWorth - (oldestMonth.netWorth - oldestMonth.netDiff);
+        const yearYield = (oldestMonth.netWorth - oldestMonth.netDiff) !== 0
+          ? (yearDiff / Math.abs(oldestMonth.netWorth - oldestMonth.netDiff)) * 100
+          : 0;
+
+        return {
+          year,
+          months: sortedMonths,
+          latestNetWorth: latestMonth.netWorth,
+          yearDiff,
+          yearYield
+        };
+      });
+  }, [monthlyHistory]);
 
   const categoryStats = useMemo(() => {
     return categories.map(cat => {
@@ -4124,9 +4165,12 @@ const App: React.FC = () => {
         }
         
         /* Transparent/Opacity Backgrounds */
-        [class*="bg-gray-900/"], [class*="bg-gray-800/"] { 
-          background-color: #f3f4f6 !important; 
-          border-color: #e5e7eb !important; 
+        [class*="bg-gray-950/"], [class*="bg-gray-900/"], [class*="bg-gray-800/"] { 
+          background-color: #f8fafc !important; 
+          border-color: #e2e8f0 !important; 
+        }
+        [class*="hover:bg-gray-800/"], [class*="hover:bg-gray-900/"] {
+          background-color: #f1f5f9 !important;
         }
         .bg-black\\/40, .bg-black\\/50, .bg-black\\/80 { 
           background-color: rgba(255, 255, 255, 0.8) !important; 
@@ -4135,23 +4179,37 @@ const App: React.FC = () => {
         }
         
         /* Text Color Overrides - Target specific roles instead of global text-white */
-        h1, h2, h3, h4, th, td, p, span { color: #1f2937 !important; }
-        .text-white { color: #1f2937 !important; }
-        .text-gray-100, .text-gray-200, .text-gray-300 { color: #374151 !important; }
-        .text-gray-400 { color: #4b5563 !important; }
-        .text-gray-500 { color: #6b7280 !important; }
-        .text-gray-600 { color: #9ca3af !important; }
+        h1, h2, h3, h4, th, td, p, li { color: #111827 !important; }
+        .text-white { color: #111827 !important; }
+        .text-gray-100, .text-gray-200, .text-gray-300 { color: #1f2937 !important; }
+        .text-gray-400 { color: #374151 !important; }
+        .text-gray-500 { color: #4b5563 !important; }
+        .text-gray-600 { color: #6b7280 !important; }
+
+        /* Preserve Semantic Colors */
+        .text-green-400, .text-green-500, .text-emerald-500 { color: #059669 !important; }
+        .text-red-400, .text-red-500, .text-rose-500 { color: #dc2626 !important; }
+        .text-yellow-400, .text-yellow-500 { color: #ca8a04 !important; }
         
         /* Border Overrides */
         .border-gray-800, .border-gray-700, .border-gray-600 { border-color: #e5e7eb !important; }
-        .divide-gray-800 > * + *, .divide-gray-700 > * + * { border-color: #e5e7eb !important; }
+        .divide-gray-800 > * + *, .divide-gray-700 > * + *, [class*="divide-gray-800/"] > * + * { border-color: #e5e7eb !important; }
+        .border-gray-800\\/20, .border-gray-800\\/50 { border-color: #f1f5f9 !important; }
         
         /* Specific Elements */
         input, select, textarea { 
           background-color: #ffffff !important; 
           color: #111827 !important; 
           border-color: #d1d5db !important; 
+          color-scheme: light !important;
         }
+        option { background-color: #ffffff !important; color: #111827 !important; }
+        
+        [class*="focus:bg-gray-800/"], [class*="group-focus-within:bg-gray-900"] {
+          background-color: #f1f5f9 !important;
+          color: #111827 !important;
+        }
+
         button.bg-gray-900:hover, button.bg-gray-800:hover, .hover\\:bg-gray-800:hover, .hover\\:bg-gray-700:hover { 
           background-color: #f3f4f6 !important; 
           color: #111827 !important;
@@ -4159,6 +4217,10 @@ const App: React.FC = () => {
         
         /* SVGs and Icons */
         .fill-\\[\\#0d0d0d\\] { fill: #ffffff !important; }
+        .fill-gray-300 { fill: #1f2937 !important; }
+        .fill-gray-400 { fill: #374151 !important; }
+        .fill-gray-500 { fill: #4b5563 !important; }
+        .fill-gray-600 { fill: #6b7280 !important; }
         
         /* Ensure primary colored backgrounds STAY solid and vibrant */
         .bg-blue-600 { background-color: #2563eb !important; }
@@ -5636,20 +5698,20 @@ const App: React.FC = () => {
                             <button onClick={() => removeAssetCategory(category.id)} className="p-1 hover:text-red-500 text-gray-600 transition-colors" title="Delete Category"><Trash2 size={14} /></button>
                           </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {category.items.map(item => (
-                            <div key={item.id} className="bg-gray-900/40 p-4 rounded-2xl border border-gray-800 flex items-center justify-between group transition-all hover:border-gray-700">
-                              <div className="flex items-center space-x-3 flex-1">
-                                <button onClick={() => removeAssetItem(category.id, item.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity"><Trash2 size={14} /></button>
-                                <span className="font-semibold text-sm">{item.name}</span>
+                            <div key={item.id} className="bg-gray-900/40 p-3 rounded-2xl border border-gray-800 flex items-center justify-between group transition-all hover:border-gray-700">
+                              <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                <button onClick={() => removeAssetItem(category.id, item.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity flex-shrink-0"><Trash2 size={14} /></button>
+                                <span className="font-semibold text-sm break-words whitespace-normal">{item.name}</span>
                               </div>
-                              <div className="flex items-center space-x-2">
-                                <span className="text-gray-600 text-xs">$</span>
+                              <div className="flex items-center space-x-2 flex-shrink-0">
+                                <span className="text-gray-600 text-[10px]">$</span>
                                 <input
                                   type="number"
                                   placeholder="0.00"
                                   value={item.value}
-                                  className={`bg-transparent border-b border-gray-800 w-32 focus:${theme.border} outline-none text-right font-mono text-white text-sm`}
+                                  className={`bg-transparent border-b border-gray-800 w-24 focus:${theme.border} outline-none text-right font-mono text-white text-sm`}
                                   onChange={(e) => updateAssetValue(category.id, item.id, e.target.value)}
                                 />
                               </div>
@@ -5690,99 +5752,143 @@ const App: React.FC = () => {
                       <table className="w-full text-left">
                         <thead>
                           <tr className="bg-gray-900/80 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800">
-                            <th className="px-6 py-4 w-32">Date</th>
+                            <th className="px-6 py-4 w-40">Period</th>
                             <th className="px-6 py-4 text-right">Net Worth</th>
-                            <th className="px-6 py-4 text-right">Net Difference</th>
-                            <th className="px-6 py-4 text-right">Monthly Yield</th>
-                            <th className="px-6 py-4">Comments</th>
+                            <th className="px-6 py-4 text-right">Difference</th>
+                            <th className="px-6 py-4 text-right">Yield</th>
+                            <th className="px-6 py-4">Comments / Summary</th>
                             <th className="px-6 py-4 w-10"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800/50">
-                          {monthlyHistory.map((h, index) => (
-                            <React.Fragment key={h.sortKey || h.date}>
-                              <tr
-                                className={`hover:bg-gray-800/20 group cursor-pointer transition-colors ${expandedHistoryIndex === index ? 'bg-gray-800/10' : ''}`}
-                                onClick={() => toggleHistoryExpansion(index)}
-                              >
-                                <td className="px-6 py-4 text-sm font-bold text-gray-300 flex items-center gap-2">
-                                  {expandedHistoryIndex === index ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />}
-                                  {h.date}
-                                </td>
-                                <td className="px-6 py-4 text-right text-sm font-bold text-white font-mono">
-                                  ${h.netWorth.toLocaleString()}
-                                </td>
-                                <td className={`px-6 py-4 text-right text-sm font-mono ${h.netDiff > 0 ? 'text-green-400' : h.netDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                                  {h.netDiff > 0 ? '+' : ''}{h.netDiff.toLocaleString()}
-                                </td>
-                                <td className={`px-6 py-4 text-right text-sm font-mono ${h.yield > 0 ? 'text-green-400' : h.yield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
-                                  {h.yield > 0 ? '+' : ''}{h.yield.toFixed(2)}%
-                                </td>
-                                <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                                  <textarea
-                                    value={h.comment}
-                                    onChange={(e) => updateHistoryComment(h.sortKey || h.date, e.target.value)}
-                                    className="w-full bg-transparent text-sm text-gray-500 italic outline-none resize-y min-h-[40px] border-b border-transparent focus:border-gray-700 transition-colors placeholder-gray-700"
-                                    placeholder="Add notes..."
-                                  />
-                                </td>
-                                <td className="px-6 py-4 text-center">
-                                </td>
-                              </tr>
-                              {expandedHistoryIndex === index && (
-                                <tr className="bg-gray-950/30">
-                                  <td colSpan={6} className="px-6 py-6 animate-in slide-in-from-top-2 fade-in duration-300">
-                                    {h.snapshot ? (
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pl-6 border-l-2 border-gray-800">
-                                        {h.snapshot.map(cat => (
-                                          <div key={cat.id} className="space-y-3">
-                                            <div className="flex items-center space-x-2">
-                                              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{cat.name}</h4>
-                                              {cat.isLiability && <span className="px-1.5 py-0.5 bg-red-900/20 text-red-500 text-[8px] rounded">LIABILITY</span>}
-                                              {cat.isTracking && <span className="px-1.5 py-0.5 bg-yellow-900/20 text-yellow-500 text-[8px] rounded">TRACKING</span>}
-                                            </div>
-                                            <div className="space-y-2">
-                                              {cat.items.map(item => {
-                                                const currentVal = parseFloat(item.value.toString()) || 0;
-                                                const prevSnapshot = monthlyHistory[index + 1]?.snapshot;
-                                                const prevVal = getPreviousItemValue(prevSnapshot, cat.id, item.id);
-                                                const diff = currentVal - prevVal;
-                                                const diffPct = prevVal !== 0 ? (diff / Math.abs(prevVal)) * 100 : 0;
+                          {groupedHistoryByYear.map(({ year, months, latestNetWorth, yearDiff, yearYield }) => {
+                            const isYearExpanded = expandedYears.includes(year);
+                            return (
+                              <React.Fragment key={year}>
+                                {/* Year Row */}
+                                <tr
+                                  className={`cursor-pointer transition-colors ${isYearExpanded ? 'bg-blue-900/10' : 'hover:bg-gray-800/20'}`}
+                                  onClick={() => setExpandedYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year])}
+                                >
+                                  <td className="px-6 py-5 text-lg font-black text-white flex items-center gap-3">
+                                    <div className={`p-1 rounded-lg ${isYearExpanded ? theme.primary : 'bg-gray-800 text-gray-500'}`}>
+                                      {isYearExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                    </div>
+                                    {year}
+                                  </td>
+                                  <td className="px-6 py-5 text-right text-lg font-black text-white font-mono">
+                                    ${latestNetWorth.toLocaleString()}
+                                  </td>
+                                  <td className={`px-6 py-5 text-right text-lg font-mono font-black ${yearDiff > 0 ? 'text-green-400' : yearDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                    {yearDiff > 0 ? '+' : ''}{yearDiff.toLocaleString()}
+                                  </td>
+                                  <td className={`px-6 py-5 text-right text-lg font-mono font-black ${yearYield > 0 ? 'text-green-400' : yearYield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                    {yearYield > 0 ? '+' : ''}{yearYield.toFixed(2)}%
+                                  </td>
+                                  <td className="px-6 py-5 text-xs text-gray-500 italic" onClick={(e) => e.stopPropagation()}>
+                                    <textarea
+                                      value={yearlyComments[year] || ''}
+                                      onChange={(e) => updateYearlyComment(year, e.target.value)}
+                                      className="w-full bg-transparent text-sm text-gray-400 italic outline-none resize-none min-h-[40px] border-b border-transparent focus:border-gray-700 transition-colors placeholder-gray-800"
+                                      placeholder={`${months.length} records grouped. Add year notes...`}
+                                    />
+                                  </td>
+                                  <td className="px-6 py-5"></td>
+                                </tr>
 
-                                                const isGood = cat.isLiability ? diff < 0 : diff > 0;
-                                                const isNeutral = diff === 0;
-                                                const colorClass = isNeutral ? 'text-gray-600' : isGood ? 'text-green-500' : 'text-red-500';
+                                {/* Month Rows */}
+                                {isYearExpanded && months.map((h) => {
+                                  const globalIndex = monthlyHistory.indexOf(h);
+                                  const isMonthExpanded = expandedHistoryIndex === globalIndex;
+                                  return (
+                                    <React.Fragment key={h.sortKey || h.date}>
+                                      <tr
+                                        className={`hover:bg-gray-800/40 group cursor-pointer transition-colors border-l-4 ${isMonthExpanded ? theme.border : 'border-transparent'} ${isMonthExpanded ? 'bg-gray-800/20' : 'bg-gray-900/10'}`}
+                                        onClick={() => toggleHistoryExpansion(globalIndex)}
+                                      >
+                                        <td className="px-10 py-4 text-sm font-bold text-gray-400 flex items-center gap-2">
+                                          {isMonthExpanded ? <ChevronUp size={14} className={theme.text} /> : <ChevronDown size={14} className="text-gray-600" />}
+                                          {h.date}
+                                        </td>
+                                        <td className="px-6 py-4 text-right text-sm font-bold text-gray-200 font-mono">
+                                          ${h.netWorth.toLocaleString()}
+                                        </td>
+                                        <td className={`px-6 py-4 text-right text-sm font-mono ${h.netDiff > 0 ? 'text-green-400' : h.netDiff < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                          {h.netDiff > 0 ? '+' : ''}{h.netDiff.toLocaleString()}
+                                        </td>
+                                        <td className={`px-6 py-4 text-right text-sm font-mono ${h.yield > 0 ? 'text-green-400' : h.yield < 0 ? 'text-red-400' : 'text-gray-500'}`}>
+                                          {h.yield > 0 ? '+' : ''}{h.yield.toFixed(2)}%
+                                        </td>
+                                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                          <textarea
+                                            value={h.comment}
+                                            onChange={(e) => updateHistoryComment(h.sortKey || h.date, e.target.value)}
+                                            className="w-full bg-transparent text-sm text-gray-600 italic outline-none resize-y min-h-[40px] border-b border-transparent focus:border-gray-800 transition-colors placeholder-gray-800"
+                                            placeholder="Add notes..."
+                                          />
+                                        </td>
+                                        <td className="px-6 py-4"></td>
+                                      </tr>
 
-                                                return (
-                                                  <div key={item.id} className="flex justify-between items-center text-sm p-2 rounded hover:bg-gray-900/50">
-                                                    <span className="text-gray-300">{item.name}</span>
-                                                    <div className="text-right">
-                                                      <div className="font-mono text-white">${currentVal.toLocaleString()}</div>
-                                                      {!isNeutral && (
-                                                        <div className={`text-[10px] font-bold ${colorClass} flex justify-end space-x-1`}>
-                                                          <span>{diff > 0 ? '+' : ''}{diff.toLocaleString()}</span>
-                                                          <span>({diffPct > 0 ? '+' : ''}{diffPct.toFixed(1)}%)</span>
-                                                        </div>
-                                                      )}
-                                                      {isNeutral && <div className="text-[10px] text-gray-700">-</div>}
+                                      {/* Snapshot Grid */}
+                                      {isMonthExpanded && (
+                                        <tr className="bg-gray-950/40">
+                                          <td colSpan={6} className="px-12 py-8 animate-in slide-in-from-top-2 fade-in duration-300">
+                                            {h.snapshot ? (
+                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pl-6 border-l-2 border-gray-800/50">
+                                                {h.snapshot.map(cat => (
+                                                  <div key={cat.id} className="space-y-4">
+                                                    <div className="flex items-center justify-between border-b border-gray-800/50 pb-2">
+                                                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{cat.name}</h4>
+                                                      <div className="flex gap-2">
+                                                        {cat.isLiability && <span className="px-2 py-0.5 bg-red-900/30 text-red-500 text-[8px] rounded font-bold border border-red-500/20">LIABILITY</span>}
+                                                        {cat.isTracking && <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-500 text-[8px] rounded font-bold border border-yellow-500/20">TRACKING</span>}
+                                                      </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                      {cat.items.map(item => {
+                                                        const currentVal = parseFloat(item.value.toString()) || 0;
+                                                        const prevSnapshot = monthlyHistory[globalIndex + 1]?.snapshot;
+                                                        const prevVal = getPreviousItemValue(prevSnapshot, cat.id, item.id);
+                                                        const diff = currentVal - prevVal;
+                                                        const diffPct = prevVal !== 0 ? (diff / Math.abs(prevVal)) * 100 : 0;
+                                                        const isGood = cat.isLiability ? diff < 0 : diff > 0;
+                                                        const isNeutral = diff === 0;
+                                                        const colorClass = isNeutral ? 'text-gray-600' : isGood ? 'text-green-500' : 'text-red-500';
+
+                                                        return (
+                                                          <div key={item.id} className="flex justify-between items-start text-[11px] p-2.5 rounded-xl bg-gray-900/40 border border-gray-800 hover:border-gray-700 hover:bg-gray-800/30 transition-all shadow-sm">
+                                                            <span className="text-gray-300 font-medium break-words pr-2 pt-0.5">{item.name}</span>
+                                                            <div className="text-right flex-shrink-0">
+                                                              <div className="font-mono text-white font-bold text-sm">${currentVal.toLocaleString()}</div>
+                                                              {!isNeutral && (
+                                                                <div className={`text-[9px] font-black ${colorClass} flex justify-end items-center gap-1 mt-0.5`}>
+                                                                  <span>{diff > 0 ? '+' : ''}{diff.toLocaleString()}</span>
+                                                                  <span className="opacity-60 text-[8px]">({diffPct > 0 ? '+' : ''}{diffPct.toFixed(1)}%)</span>
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                          </div>
+                                                        );
+                                                      })}
                                                     </div>
                                                   </div>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <div className="text-center text-gray-600 italic py-4">
-                                        Detailed asset data not available for this record.
-                                      </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          ))}
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <div className="text-center text-gray-600 italic py-6 text-sm bg-gray-900/20 rounded-2xl border border-dashed border-gray-800">
+                                                No detailed snapshot available for this period.
+                                              </div>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

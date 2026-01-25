@@ -15,6 +15,8 @@ declare global {
             // Updates
             checkForUpdates: () => Promise<any>;
             quitAndInstall: () => Promise<void>;
+            openUpdateFolder: () => Promise<{ success: boolean; error?: string }>;
+            getUpdateLog: () => Promise<string>;
             getAppVersion: () => Promise<string>;
             onUpdateStatus: (callback: (data: { status: string; data?: any }) => void) => () => void;
         };

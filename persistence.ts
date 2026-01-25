@@ -105,6 +105,7 @@ export interface AppData {
 
     // Custom Colors
     customColors?: Record<string, string>;
+    yearlyComments?: Record<string, string>;
 
     // Tab Visibility
     hiddenTabs?: string[];
