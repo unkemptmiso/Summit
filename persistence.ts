@@ -34,11 +34,15 @@ declare global {
             showOpenDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
             ensureDir: (path: string) => Promise<{ success: boolean; error?: string }>;
             saveReceipt: (path: string, buffer: ArrayBuffer) => Promise<{ success: boolean; error?: string }>;
-            showDirectoryDialog: () => Promise<{ canceled: boolean; filePaths: string[] }>;
+            listFiles: (path: string) => Promise<{ success: boolean; files: { name: string; size: number; mtime: number; isDirectory: boolean }[]; error?: string }>;
+            deleteFile: (path: string) => Promise<{ success: boolean; error?: string }>;
+            showDirectoryDialog: (title?: string) => Promise<{ canceled: boolean; filePaths: string[] }>;
             getAppVersion: () => Promise<string>;
             onUpdateStatus: (callback: (data: { status: string; data?: any }) => void) => () => void;
             checkForUpdates: () => Promise<{ status: string; data?: any }>;
             quitAndInstall: () => Promise<void>;
+            openUpdateFolder: () => Promise<{ success: boolean; error?: string }>;
+            getUpdateLog: () => Promise<string>;
         };
     }
 }
@@ -120,6 +124,7 @@ export interface AppData {
     // Receipt Directories
     receiptsDir?: string;
     businessReceiptsDir?: string;
+    versionHistoryDir?: string;
 }
 
 // --- Electron Types ---

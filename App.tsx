@@ -456,6 +456,8 @@ const App: React.FC = () => {
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
   const [receiptsDir, setReceiptsDir] = useState<string>('');
   const [businessReceiptsDir, setBusinessReceiptsDir] = useState<string>('');
+  const [versionHistoryDir, setVersionHistoryDir] = useState<string>('');
+  const [backupFiles, setBackupFiles] = useState<{ name: string; size: number; mtime: number }[]>([]);
   const [colorMode, setColorMode] = useState<'light' | 'dark' | 'midnight'>('dark');
   const [userName, setUserName] = useState<string>('');
 
@@ -632,6 +634,7 @@ const App: React.FC = () => {
     hiddenDashboardWidgets,
     receiptsDir,
     businessReceiptsDir,
+    versionHistoryDir,
     colorMode,
     userName,
     isPasswordProtectionEnabled,
@@ -655,6 +658,7 @@ const App: React.FC = () => {
     hiddenDashboardWidgets,
     receiptsDir,
     businessReceiptsDir,
+    versionHistoryDir,
     colorMode,
     userName,
     isPasswordProtectionEnabled,
@@ -708,6 +712,112 @@ const App: React.FC = () => {
     setTimeout(() => {
       isInternalUpdate.current = false;
     }, 500);
+  };
+  const handlePickVersionHistoryDir = async () => {
+    console.log('handlePickVersionHistoryDir called');
+    if (!window.electronAPI) {
+      console.error('electronAPI not found');
+      setToast({ message: "System error: Desktop API not available", show: true, type: 'error' });
+      return;
+    }
+    try {
+      const result = await window.electronAPI.showDirectoryDialog('Select Version History Folder');
+      console.log('Directory dialog result:', result);
+      if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+        const newDir = result.filePaths[0];
+        setVersionHistoryDir(newDir);
+        setToast({ message: "Version history folder updated", show: true });
+        fetchBackupFiles(newDir);
+      }
+    } catch (error) {
+      console.error('Failed to pick directory:', error);
+      setToast({ message: "Failed to open directory dialog", show: true, type: 'error' });
+    }
+  };
+
+  const fetchBackupFiles = async (dir?: string) => {
+    const targetDir = dir || versionHistoryDir;
+    if (!window.electronAPI || !targetDir) return;
+    try {
+      const res = await window.electronAPI.listFiles(targetDir);
+      if (res.success) {
+        const files = res.files
+          .filter(f => !f.isDirectory && f.name.endsWith('.json'))
+          .sort((a, b) => b.mtime - a.mtime);
+        setBackupFiles(files);
+      }
+    } catch (e) {
+      console.error("Failed to fetch backup files:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (versionHistoryDir) {
+      fetchBackupFiles();
+    }
+  }, [versionHistoryDir]);
+
+  const createVersionBackup = async (silent: boolean = false) => {
+    if (!window.electronAPI || !versionHistoryDir) return;
+
+    try {
+      await window.electronAPI.ensureDir(versionHistoryDir);
+      const now = new Date();
+      const timestamp = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0') + '_' +
+        String(now.getHours()).padStart(2, '0') + '-' +
+        String(now.getMinutes()).padStart(2, '0') + '-' +
+        String(now.getSeconds()).padStart(2, '0');
+      const filename = `summit_backup_${timestamp}.json`;
+      const filePath = `${versionHistoryDir}/${filename}`;
+
+      let dataToSave: AppData | EncryptedData = appData;
+      if (isPasswordProtectionEnabled && sessionPassword) {
+        dataToSave = await encryptData(appData, sessionPassword);
+      }
+
+      const content = JSON.stringify(dataToSave, null, 2);
+      await window.electronAPI.saveFile(filePath, content);
+      fetchBackupFiles();
+      if (!silent) setToast({ message: "Version history snapshot created", show: true });
+    } catch (e) {
+      console.error("Backup failed:", e);
+      setToast({ message: "Failed to create snapshot", show: true, type: 'error' });
+    }
+  };
+
+  const handleRestoreBackup = async (filename: string) => {
+    if (!window.electronAPI || !versionHistoryDir) return;
+    if (!confirm('Are you sure you want to restore this version? Current unsaved changes will be lost.')) return;
+
+    try {
+      const filePath = `${versionHistoryDir}/${filename}`;
+      const res = await window.electronAPI.readFile(filePath);
+      if (res.success && res.content) {
+        const data = JSON.parse(res.content);
+        loadData(data);
+        setToast({ message: "Version restored successfully", show: true });
+      }
+    } catch (e) {
+      console.error("Restore failed:", e);
+      setToast({ message: "Failed to restore version", show: true, type: 'error' });
+    }
+  };
+
+  const handleDeleteBackup = async (filename: string) => {
+    if (!window.electronAPI || !versionHistoryDir) return;
+    if (!confirm(`Are you sure you want to delete backup: ${filename}?`)) return;
+
+    try {
+      const filePath = `${versionHistoryDir}/${filename}`;
+      await window.electronAPI.deleteFile(filePath);
+      fetchBackupFiles();
+      setToast({ message: "Backup deleted", show: true });
+    } catch (e) {
+      console.error("Delete failed:", e);
+      setToast({ message: "Failed to delete backup", show: true, type: 'error' });
+    }
   };
 
 
@@ -776,6 +886,7 @@ const App: React.FC = () => {
     if (appData.hiddenDashboardWidgets) setHiddenDashboardWidgets(appData.hiddenDashboardWidgets);
     if (appData.receiptsDir) setReceiptsDir(appData.receiptsDir);
     if (appData.businessReceiptsDir) setBusinessReceiptsDir(appData.businessReceiptsDir);
+    if (appData.versionHistoryDir) setVersionHistoryDir(appData.versionHistoryDir);
     if (appData.colorMode) setColorMode(appData.colorMode);
     if (appData.userName) setUserName(appData.userName);
     if (appData.yearlyComments) setYearlyComments(appData.yearlyComments);
@@ -884,6 +995,12 @@ const App: React.FC = () => {
       setSaveStatus('saved');
       setLastSavedTime(new Date());
       setToast({ message: "File saved successfully", show: true });
+
+      // Automatically create a version history snapshot if directory is set
+      if (versionHistoryDir) {
+        // We pass a flag or just call it, but let's make it silent for auto-backups
+        createVersionBackup(true);
+      }
     } catch (e) {
       console.error("Save failed:", e);
       setSaveStatus('error');
@@ -6250,6 +6367,80 @@ const App: React.FC = () => {
                             <span>UNDO ACTION</span>
                           </button>
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-800 pt-8">
+                      <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><RotateCcw size={20} className="text-blue-400" /> Save File Version History</h3>
+                      <p className="text-gray-500 text-sm mb-6">Access and restore previous versions of your entire save file.</p>
+
+                      <div className="space-y-4">
+                        <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6">
+                          <label className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-2 block">Backup Directory</label>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-xs text-gray-400 truncate font-mono">
+                              {versionHistoryDir || "No directory selected"}
+                            </div>
+                            <button
+                              onClick={handlePickVersionHistoryDir}
+                              className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-3 rounded-xl text-xs font-bold transition-all border border-gray-700 flex items-center gap-2 shrink-0"
+                            >
+                              <FolderOpen size={14} />
+                              <span>{versionHistoryDir ? 'CHANGE' : 'SELECT'}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {versionHistoryDir && (
+                          <div className="bg-gray-900/30 border border-gray-800 rounded-2xl overflow-hidden">
+                            <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/20">
+                              <h4 className="text-white font-bold text-xs uppercase tracking-widest">Available Snapshots</h4>
+                              <button
+                                onClick={createVersionBackup}
+                                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5"
+                              >
+                                <Plus size={12} />
+                                CREATE SNAPSHOT
+                              </button>
+                            </div>
+
+                            <div className="max-h-64 overflow-y-auto divide-y divide-gray-800/50">
+                              {backupFiles.length > 0 ? (
+                                backupFiles.map((file) => (
+                                  <div key={file.name} className="flex items-center justify-between p-4 hover:bg-gray-800/30 group transition-colors">
+                                    <div className="min-w-0">
+                                      <p className="text-gray-200 text-sm font-medium truncate">{file.name}</p>
+                                      <div className="flex items-center gap-3 mt-1">
+                                        <span className="text-[10px] text-gray-500 font-mono">{(file.size / 1024).toFixed(1)} KB</span>
+                                        <span className="text-[10px] text-gray-500 font-mono">{new Date(file.mtime).toLocaleString()}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => handleRestoreBackup(file.name)}
+                                        className="p-2 text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors"
+                                        title="Restore Version"
+                                      >
+                                        <RotateCcw size={16} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteBackup(file.name)}
+                                        className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Delete Snapshot"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-8 text-center text-gray-600 italic text-sm">
+                                  No snapshots found in this directory.
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 

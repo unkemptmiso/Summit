@@ -5,10 +5,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
     showSaveDialog: () => ipcRenderer.invoke('show-save-dialog'),
     showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
-    showDirectoryDialog: () => ipcRenderer.invoke('show-directory-dialog'),
+    showDirectoryDialog: (title) => ipcRenderer.invoke('show-directory-dialog', title),
     ensureDir: (dirPath) => ipcRenderer.invoke('ensure-dir', dirPath),
 
     saveReceipt: (filePath, buffer) => ipcRenderer.invoke('save-receipt', filePath, buffer),
+    listFiles: (dirPath) => ipcRenderer.invoke('list-files', dirPath),
+    deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
 
     // Updates
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
