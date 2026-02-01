@@ -2991,6 +2991,46 @@ const App: React.FC = () => {
     setEditingItemNewName("");
   };
 
+  const moveCategory = (index: number, direction: 'up' | 'down') => {
+    setCategories(prev => {
+      const newOrder = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= newOrder.length) return prev;
+      [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+      return newOrder;
+    });
+  };
+
+  const movePaymentMethod = (index: number, direction: 'up' | 'down') => {
+    setPaymentMethods(prev => {
+      const newOrder = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= newOrder.length) return prev;
+      [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+      return newOrder;
+    });
+  };
+
+  const moveBusinessCategory = (index: number, direction: 'up' | 'down') => {
+    setBusinessCategories(prev => {
+      const newOrder = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= newOrder.length) return prev;
+      [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+      return newOrder;
+    });
+  };
+
+  const moveBusinessPaymentMethod = (index: number, direction: 'up' | 'down') => {
+    setBusinessPaymentMethods(prev => {
+      const newOrder = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= newOrder.length) return prev;
+      [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+      return newOrder;
+    });
+  };
+
   // --- ASSET WATCH LOGIC ---
   const handleSaveNewCategory = () => {
     if (!newCategoryName.trim()) {
@@ -3407,6 +3447,7 @@ const App: React.FC = () => {
   };
 
   const addYearlyStream = () => {
+    // Add new yearly stream record
     setNewYearlyRecord(prev => ({
       ...prev,
       streams: [...(prev.streams || []), { id: Math.random().toString(36).substr(2, 9), name: '', grossAmount: 0, netAmount: 0 }]
@@ -7353,9 +7394,53 @@ const App: React.FC = () => {
                           settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? businessCategories : categories) :
                             settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? businessPaymentMethods : paymentMethods) :
                               drivingPurposes
-                        ).map((item) => (
-                          <div key={item} className="p-4 flex items-center justify-between hover:bg-gray-900/30 group">
-                            {editingItemOriginalName === item ? (
+                        ).map((item, index) => (
+                          <div key={item} className="p-4 flex items-center justify-between hover:bg-gray-900/10 group border-b border-gray-800/30 last:border-0 pl-2">
+                            {/* Reordering Controls + Item Name Wrapper */}
+                            <div className="flex items-center">
+                              {!editingItemOriginalName && settingsSubSection !== 'purposes' && (
+                                <div className="flex flex-col gap-0.5 mr-3">
+                                  <button
+                                    disabled={index === 0}
+                                    onClick={() => {
+                                      if (settingsSubSection === 'categories') {
+                                        if (settingsActiveSection === 'Business Center') moveBusinessCategory(index, 'up');
+                                        else moveCategory(index, 'up');
+                                      } else if (settingsSubSection === 'methods') {
+                                        if (settingsActiveSection === 'Business Center') moveBusinessPaymentMethod(index, 'up');
+                                        else movePaymentMethod(index, 'up');
+                                      }
+                                    }}
+                                    className="text-gray-600 hover:text-white disabled:opacity-20 disabled:hover:text-gray-600 transition-colors"
+                                  >
+                                    <ChevronUp size={12} />
+                                  </button>
+                                  <button
+                                    disabled={index === (
+                                      settingsSubSection === 'categories' ? (settingsActiveSection === 'Business Center' ? businessCategories.length : categories.length) :
+                                        settingsSubSection === 'methods' ? (settingsActiveSection === 'Business Center' ? businessPaymentMethods.length : paymentMethods.length) :
+                                          drivingPurposes.length
+                                    ) - 1}
+                                    onClick={() => {
+                                      if (settingsSubSection === 'categories') {
+                                        if (settingsActiveSection === 'Business Center') moveBusinessCategory(index, 'down');
+                                        else moveCategory(index, 'down');
+                                      } else if (settingsSubSection === 'methods') {
+                                        if (settingsActiveSection === 'Business Center') moveBusinessPaymentMethod(index, 'down');
+                                        else movePaymentMethod(index, 'down');
+                                      }
+                                    }}
+                                    className="text-gray-600 hover:text-white disabled:opacity-20 disabled:hover:text-gray-600 transition-colors"
+                                  >
+                                    <ChevronDown size={12} />
+                                  </button>
+                                </div>
+                              )}
+                              {editingItemOriginalName !== item && (
+                                <span className="text-sm text-gray-300 font-medium pl-2">{item}</span>
+                              )}
+                            </div>
+                            {editingItemOriginalName === item && (
                               <div className="flex-1 flex items-center gap-3 mr-4">
                                 <input
                                   autoFocus
@@ -7389,9 +7474,8 @@ const App: React.FC = () => {
                                 </button>
                                 <button onClick={() => { setEditingItemOriginalName(null); setEditingItemNewName(""); }} className="text-gray-500 hover:text-white"><X size={18} /></button>
                               </div>
-                            ) : (
-                              <span className="text-sm text-gray-300 font-medium pl-2">{item}</span>
                             )}
+
 
                             {editingItemOriginalName !== item && (
                               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
