@@ -5071,8 +5071,6 @@ const App: React.FC = () => {
                             </tr>
                           ) : (
                             <>
-                              {normalTxns.map(renderTransactionRow)}
-
                               {recurringTxns.length > 0 && !isRecurringExpanded && (
                                 <tr
                                   onClick={() => setIsRecurringExpanded(true)}
@@ -5110,8 +5108,21 @@ const App: React.FC = () => {
                                   </td>
                                 </tr>
                               )}
+
+                              {normalTxns.map(renderTransactionRow)}
                             </>
                           )}
+                          <tr
+                            onClick={addBlankRow}
+                            className="cursor-pointer hover:bg-gray-800/50 transition-colors group border-t border-gray-800 border-dashed"
+                          >
+                            <td colSpan={7} className="py-3 text-center">
+                              <div className="flex items-center justify-center space-x-2 text-gray-500 group-hover:text-gray-300 transition-colors opacity-70 group-hover:opacity-100">
+                                <Plus size={14} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Add New Row</span>
+                              </div>
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
@@ -5521,6 +5532,17 @@ const App: React.FC = () => {
                               </tr>
                             ))
                           )}
+                          <tr
+                            onClick={addBlankBusinessRow}
+                            className="cursor-pointer hover:bg-gray-800/50 transition-colors group border-t border-gray-800 border-dashed"
+                          >
+                            <td colSpan={7} className="py-3 text-center">
+                              <div className="flex items-center justify-center space-x-2 text-gray-500 group-hover:text-gray-300 transition-colors opacity-70 group-hover:opacity-100">
+                                <Plus size={14} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Add New Row</span>
+                              </div>
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
