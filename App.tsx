@@ -373,6 +373,7 @@ const App: React.FC = () => {
   // Recurring Expenses State
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(INITIAL_RECURRING_EXPENSES);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+  const [isRecurringExpanded, setIsRecurringExpanded] = useState(false);
   const [selectedRecurringIds, setSelectedRecurringIds] = useState<Set<string>>(new Set());
 
   // Income State
@@ -4397,6 +4398,107 @@ const App: React.FC = () => {
     return css;
   }, [colorMode]);
 
+  // --- Recurring Expenses Display Logic ---
+  const { recurringTxns, normalTxns, recurringTotal } = useMemo(() => {
+    const recurring: Transaction[] = [];
+    const normal: Transaction[] = [];
+    let total = 0;
+
+    // Create a set of recurring descriptions for fast lookup
+    const recurringDescriptions = new Set(recurringExpenses.map(r => r.description));
+
+    displayedTransactions.forEach(t => {
+      // Check if this transaction matches a recurring expense description
+      if (recurringDescriptions.has(t.description)) {
+        recurring.push(t);
+        total += (parseFloat(t.amount.toString()) || 0);
+      } else {
+        normal.push(t);
+      }
+    });
+
+    return { recurringTxns: recurring, normalTxns: normal, recurringTotal: total };
+  }, [displayedTransactions, recurringExpenses]);
+
+  const renderTransactionRow = (t: Transaction) => (
+    <tr key={t.id} className={`hover:${theme.primary}/5 transition-colors group`}>
+      <td className="p-0 border-r border-gray-800/20">
+        <input type="date" className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white border-none focus:bg-gray-800/30 [color-scheme:dark]" value={t.date} onChange={(e) => updateTransaction(t.id, 'date', e.target.value)} />
+      </td>
+      <td className="p-0 border-r border-gray-800/20">
+        <input type="text" placeholder="..." className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white font-medium border-none focus:bg-gray-800/30" value={t.description} onChange={(e) => updateTransaction(t.id, 'description', e.target.value)} />
+      </td>
+      <td className="p-0 border-r border-gray-800/20">
+        <div className="flex items-center h-11 px-4 focus-within:bg-gray-800/30">
+          <span className="text-gray-600 mr-1 text-xs">$</span>
+          <input type="number" step="0.01" className={`w-full bg-transparent outline-none text-sm text-right font-mono ${theme.text} font-bold border-none`} value={t.amount} onChange={(e) => updateTransaction(t.id, 'amount', e.target.value)} />
+        </div>
+      </td>
+      <td className="p-0 border-r border-gray-800/20">
+        <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-400 border-none cursor-pointer focus:bg-gray-800/30" value={t.category} onChange={(e) => updateTransaction(t.id, 'category', e.target.value)}>
+          {categories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+        </select>
+      </td>
+      <td className="p-0 border-r border-gray-800/20">
+        <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateTransaction(t.id, 'method', e.target.value)}>
+          {paymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
+        </select>
+      </td>
+      <td
+        className="p-0 border-r border-gray-800/20 relative group/cell"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          Array.from(e.dataTransfer.files).forEach((file) => {
+            handleReceiptUpload(file as File, t.id, false);
+          });
+        }}
+        onPaste={(e) => {
+          Array.from(e.clipboardData.files).forEach((file) => {
+            handleReceiptUpload(file as File, t.id, false);
+          });
+        }}
+      >
+        <div className="flex flex-col items-center justify-center min-h-[44px] w-full px-2 py-1 gap-1">
+          {(() => {
+            let paths = [...(t.receiptPaths || [])];
+            if (t.receiptPath && !paths.includes(t.receiptPath)) {
+              paths = [t.receiptPath, ...paths];
+            }
+
+            if (paths.length > 0) {
+              return paths.map((p, idx) => (
+                <div key={idx} className="flex items-center space-x-1 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-900/50 w-full group/receipt" title={p}>
+                  <Receipt size={10} className="text-blue-400 shrink-0" />
+                  <span className="text-[9px] text-blue-300 truncate flex-1">{p.split('/').pop()}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newPaths = paths.filter((_, i) => i !== idx);
+                      updateTransaction(t.id, 'receiptPaths', newPaths);
+                      updateTransaction(t.id, 'receiptPath', newPaths[0] || '');
+                    }}
+                    className="opacity-0 group-hover/receipt:opacity-100 hover:text-red-400 text-blue-900 transition-opacity"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ));
+            }
+            return (
+              <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
+                <span className="hidden group-hover/cell:inline">Drag / Paste</span>
+              </div>
+            );
+          })()}
+        </div>
+      </td>
+      <td className="p-0 text-center">
+        <button onClick={() => setTransactions(transactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+      </td>
+    </tr>
+  );
+
   return (
     <>
       <style>{`
@@ -4968,84 +5070,47 @@ const App: React.FC = () => {
                               <td colSpan={7} className="text-center py-8 text-gray-500 italic">No transactions found.</td>
                             </tr>
                           ) : (
-                            displayedTransactions.map(t => (
-                              <tr key={t.id} className={`hover:${theme.primary}/5 transition-colors group`}>
-                                <td className="p-0 border-r border-gray-800/20">
-                                  <input type="date" className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white border-none focus:bg-gray-800/30 [color-scheme:dark]" value={t.date} onChange={(e) => updateTransaction(t.id, 'date', e.target.value)} />
-                                </td>
-                                <td className="p-0 border-r border-gray-800/20">
-                                  <input type="text" placeholder="..." className="w-full h-11 bg-transparent px-4 py-2 outline-none text-sm text-white font-medium border-none focus:bg-gray-800/30" value={t.description} onChange={(e) => updateTransaction(t.id, 'description', e.target.value)} />
-                                </td>
-                                <td className="p-0 border-r border-gray-800/20">
-                                  <div className="flex items-center h-11 px-4 focus-within:bg-gray-800/30">
-                                    <span className="text-gray-600 mr-1 text-xs">$</span>
-                                    <input type="number" step="0.01" className={`w-full bg-transparent outline-none text-sm text-right font-mono ${theme.text} font-bold border-none`} value={t.amount} onChange={(e) => updateTransaction(t.id, 'amount', e.target.value)} />
-                                  </div>
-                                </td>
-                                <td className="p-0 border-r border-gray-800/20">
-                                  <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-400 border-none cursor-pointer focus:bg-gray-800/30" value={t.category} onChange={(e) => updateTransaction(t.id, 'category', e.target.value)}>
-                                    {categories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-                                  </select>
-                                </td>
-                                <td className="p-0 border-r border-gray-800/20">
-                                  <select className="w-full h-11 bg-transparent px-4 py-2 outline-none text-xs text-gray-500 border-none cursor-pointer focus:bg-gray-800/30" value={t.method} onChange={(e) => updateTransaction(t.id, 'method', e.target.value)}>
-                                    {paymentMethods.map(m => <option key={m} value={m} className="bg-gray-900">{m}</option>)}
-                                  </select>
-                                </td>
-                                <td
-                                  className="p-0 border-r border-gray-800/20 relative group/cell"
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    Array.from(e.dataTransfer.files).forEach((file) => {
-                                      handleReceiptUpload(file as File, t.id, false);
-                                    });
-                                  }}
-                                  onPaste={(e) => {
-                                    Array.from(e.clipboardData.files).forEach((file) => {
-                                      handleReceiptUpload(file as File, t.id, false);
-                                    });
-                                  }}
-                                >
-                                  <div className="flex flex-col items-center justify-center min-h-[44px] w-full px-2 py-1 gap-1">
-                                    {(() => {
-                                      let paths = [...(t.receiptPaths || [])];
-                                      if (t.receiptPath && !paths.includes(t.receiptPath)) {
-                                        paths = [t.receiptPath, ...paths];
-                                      }
+                            <>
+                              {normalTxns.map(renderTransactionRow)}
 
-                                      if (paths.length > 0) {
-                                        return paths.map((p, idx) => (
-                                          <div key={idx} className="flex items-center space-x-1 bg-blue-900/20 px-2 py-0.5 rounded border border-blue-900/50 w-full group/receipt" title={p}>
-                                            <Receipt size={10} className="text-blue-400 shrink-0" />
-                                            <span className="text-[9px] text-blue-300 truncate flex-1">{p.split('/').pop()}</span>
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const newPaths = paths.filter((_, i) => i !== idx);
-                                                updateTransaction(t.id, 'receiptPaths', newPaths);
-                                                updateTransaction(t.id, 'receiptPath', newPaths[0] || '');
-                                              }}
-                                              className="opacity-0 group-hover/receipt:opacity-100 hover:text-red-400 text-blue-900 transition-opacity"
-                                            >
-                                              <X size={10} />
-                                            </button>
-                                          </div>
-                                        ));
-                                      }
-                                      return (
-                                        <div className="flex items-center justify-center h-11 w-full text-gray-700 text-[10px] italic hover:text-gray-500 cursor-pointer">
-                                          <span className="hidden group-hover/cell:inline">Drag / Paste</span>
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                </td>
-                                <td className="p-0 text-center">
-                                  <button onClick={() => setTransactions(transactions.filter(tx => tx.id !== t.id))} className="text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                                </td>
-                              </tr>
-                            ))
+                              {recurringTxns.length > 0 && !isRecurringExpanded && (
+                                <tr
+                                  onClick={() => setIsRecurringExpanded(true)}
+                                  className={`hover:${theme.primary}/10 transition-colors cursor-pointer bg-blue-900/10 group`}
+                                >
+                                  <td className="p-0 border-r border-gray-800/20 px-4 py-3 text-sm text-gray-400 font-mono">
+                                    Recurring
+                                  </td>
+                                  <td className="p-0 border-r border-gray-800/20 px-4 py-3 text-sm font-bold text-white">
+                                    Recurring Expenses ({recurringTxns.length} items)
+                                  </td>
+                                  <td className="p-0 border-r border-gray-800/20 px-4 py-3 text-right font-mono text-sm font-bold text-white">
+                                    <div className="flex items-center justify-end h-full w-full">
+                                      <span className="text-gray-600 mr-1 text-xs">$</span>
+                                      <span className={`${theme.text}`}>{recurringTotal.toFixed(2)}</span>
+                                    </div>
+                                  </td>
+                                  <td colSpan={4} className="text-center text-xs text-gray-500 italic px-4">
+                                    <div className="flex items-center justify-center space-x-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                      <span>Click row to expand</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+
+                              {isRecurringExpanded && recurringTxns.map(renderTransactionRow)}
+
+                              {isRecurringExpanded && recurringTxns.length > 0 && (
+                                <tr
+                                  onClick={() => setIsRecurringExpanded(false)}
+                                  className="cursor-pointer hover:bg-gray-800/50 transition-colors"
+                                >
+                                  <td colSpan={7} className="text-center py-2 text-[10px] text-gray-500 font-bold uppercase tracking-widest hover:text-white transition-colors">
+                                    Collapse Recurring Expenses
+                                  </td>
+                                </tr>
+                              )}
+                            </>
                           )}
                         </tbody>
                       </table>
