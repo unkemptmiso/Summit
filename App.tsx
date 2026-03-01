@@ -2410,20 +2410,12 @@ const App: React.FC = () => {
 
   // --- Business Handlers ---
   const handleAddBusinessLedger = () => {
-    const requestedName = prompt("Enter the LLC name for the new business ledger:");
-    if (requestedName === null) return;
-
-    const trimmedName = requestedName.trim();
-    if (!trimmedName) {
-      alert("LLC name cannot be empty.");
-      return;
-    }
-
-    const existingNames = Object.values(businessLedgers).map(ledger => ledger.name.toLowerCase());
-    let finalName = trimmedName;
+    const existingNames = Object.values(businessLedgers).map(ledger => (ledger.name || '').toLowerCase());
+    const baseName = "New LLC";
+    let finalName = baseName;
     let suffix = 2;
     while (existingNames.includes(finalName.toLowerCase())) {
-      finalName = `${trimmedName} (${suffix})`;
+      finalName = `${baseName} (${suffix})`;
       suffix += 1;
     }
 
@@ -2434,6 +2426,8 @@ const App: React.FC = () => {
     }));
     setActiveBusinessLedgerId(newLedgerId);
     setSelectedBusinessRecurringIds(new Set());
+    setEditingBusinessLedgerId(newLedgerId);
+    setEditingBusinessLedgerName(finalName);
     setToast({ message: `${finalName} added`, show: true });
   };
 
