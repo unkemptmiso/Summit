@@ -221,6 +221,28 @@ const INITIAL_RECURRING_EXPENSES: RecurringExpense[] = [
   { id: 'r5', description: 'Car Insurance', amount: 120, category: 'Insurance', method: 'Wells Fargo' },
 ];
 
+const DEFAULT_BUSINESS_LEDGER_ID = 'primary-llc';
+
+type BusinessLedgerState = {
+  name: string;
+  transactions: Transaction[];
+  categories: string[];
+  paymentMethods: string[];
+  recurringExpenses: RecurringExpense[];
+  searchQuery: string;
+};
+
+const cloneRecurringExpenses = (source: RecurringExpense[]) => source.map(r => ({ ...r }));
+
+const createBusinessLedgerState = (name: string = 'Primary LLC'): BusinessLedgerState => ({
+  name,
+  transactions: [],
+  categories: [...INITIAL_BUSINESS_CATEGORIES],
+  paymentMethods: [...INITIAL_PAYMENT_METHODS],
+  recurringExpenses: cloneRecurringExpenses(INITIAL_RECURRING_EXPENSES),
+  searchQuery: ""
+});
+
 // --- Theme Configurations ---
 const THEMES = {
   blue: {
@@ -345,17 +367,93 @@ const App: React.FC = () => {
   const [monthlyHistory, setMonthlyHistory] = useState<MonthlyHistoryEntry[]>([]);
 
   // Business State
-  const [businessTransactions, setBusinessTransactions] = useState<Transaction[]>([]);
-  const [businessCategories, setBusinessCategories] = useState<string[]>(INITIAL_BUSINESS_CATEGORIES);
-  const [businessPaymentMethods, setBusinessPaymentMethods] = useState<string[]>(INITIAL_PAYMENT_METHODS);
-  const [businessSearchQuery, setBusinessSearchQuery] = useState("");
+  const [businessLedgers, setBusinessLedgers] = useState<Record<string, BusinessLedgerState>>({
+    [DEFAULT_BUSINESS_LEDGER_ID]: createBusinessLedgerState()
+  });
+  const [activeBusinessLedgerId, setActiveBusinessLedgerId] = useState(DEFAULT_BUSINESS_LEDGER_ID);
   const [isBusinessExportModalOpen, setIsBusinessExportModalOpen] = useState(false);
   const [isBusinessImportLedgerModalOpen, setIsBusinessImportLedgerModalOpen] = useState(false);
   const [businessImportLedgerYear, setBusinessImportLedgerYear] = useState(new Date().getFullYear());
   const [businessExportRange, setBusinessExportRange] = useState('currentViewMonth');
-  const [businessRecurringExpenses, setBusinessRecurringExpenses] = useState<RecurringExpense[]>(INITIAL_RECURRING_EXPENSES);
   const [isBusinessRecurringModalOpen, setIsBusinessRecurringModalOpen] = useState(false);
   const [selectedBusinessRecurringIds, setSelectedBusinessRecurringIds] = useState<Set<string>>(new Set());
+  const [editingBusinessLedgerId, setEditingBusinessLedgerId] = useState<string | null>(null);
+  const [editingBusinessLedgerName, setEditingBusinessLedgerName] = useState("");
+
+  const activeBusinessLedger = businessLedgers[activeBusinessLedgerId] || businessLedgers[Object.keys(businessLedgers)[0]];
+  const businessTransactions = activeBusinessLedger?.transactions || [];
+  const businessCategories = activeBusinessLedger?.categories || INITIAL_BUSINESS_CATEGORIES;
+  const businessPaymentMethods = activeBusinessLedger?.paymentMethods || INITIAL_PAYMENT_METHODS;
+  const businessRecurringExpenses = activeBusinessLedger?.recurringExpenses || cloneRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+  const businessSearchQuery = activeBusinessLedger?.searchQuery || "";
+
+  const allBusinessTransactions = useMemo(
+    () => Object.values(businessLedgers).flatMap(ledger => ledger.transactions),
+    [businessLedgers]
+  );
+
+  const allBusinessTransactionsWithLedger = useMemo(
+    () => Object.entries(businessLedgers).flatMap(([ledgerId, ledger]) =>
+      ledger.transactions.map(tx => ({ ledgerId, ledgerName: ledger.name, transaction: tx }))
+    ),
+    [businessLedgers]
+  );
+
+  useEffect(() => {
+    if (!businessLedgers[activeBusinessLedgerId]) {
+      const firstLedgerId = Object.keys(businessLedgers)[0];
+      if (firstLedgerId) setActiveBusinessLedgerId(firstLedgerId);
+    }
+  }, [businessLedgers, activeBusinessLedgerId]);
+
+  const updateActiveBusinessLedger = (updater: (ledger: BusinessLedgerState) => BusinessLedgerState) => {
+    setBusinessLedgers(prev => {
+      const current = prev[activeBusinessLedgerId] || createBusinessLedgerState();
+      return {
+        ...prev,
+        [activeBusinessLedgerId]: updater(current)
+      };
+    });
+  };
+
+  const resolveBusinessUpdate = <T,>(value: React.SetStateAction<T>, prev: T): T => (
+    typeof value === 'function' ? (value as (prevState: T) => T)(prev) : value
+  );
+
+  const setBusinessTransactions = (value: React.SetStateAction<Transaction[]>) => {
+    updateActiveBusinessLedger(ledger => ({
+      ...ledger,
+      transactions: resolveBusinessUpdate(value, ledger.transactions)
+    }));
+  };
+
+  const setBusinessCategories = (value: React.SetStateAction<string[]>) => {
+    updateActiveBusinessLedger(ledger => ({
+      ...ledger,
+      categories: resolveBusinessUpdate(value, ledger.categories)
+    }));
+  };
+
+  const setBusinessPaymentMethods = (value: React.SetStateAction<string[]>) => {
+    updateActiveBusinessLedger(ledger => ({
+      ...ledger,
+      paymentMethods: resolveBusinessUpdate(value, ledger.paymentMethods)
+    }));
+  };
+
+  const setBusinessRecurringExpenses = (value: React.SetStateAction<RecurringExpense[]>) => {
+    updateActiveBusinessLedger(ledger => ({
+      ...ledger,
+      recurringExpenses: resolveBusinessUpdate(value, ledger.recurringExpenses)
+    }));
+  };
+
+  const setBusinessSearchQuery = (value: React.SetStateAction<string>) => {
+    updateActiveBusinessLedger(ledger => ({
+      ...ledger,
+      searchQuery: resolveBusinessUpdate(value, ledger.searchQuery)
+    }));
+  };
 
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
@@ -457,7 +555,7 @@ const App: React.FC = () => {
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const [customColors, setCustomColors] = useState<Record<string, string>>({});
   const [receiptsDir, setReceiptsDir] = useState<string>('');
-  const [businessReceiptsDir, setBusinessReceiptsDir] = useState<string>('');
+  const [businessReceiptsDirs, setBusinessReceiptsDirs] = useState<Record<string, string>>({});
   const [versionHistoryDir, setVersionHistoryDir] = useState<string>('');
   const [backupFiles, setBackupFiles] = useState<{ name: string; size: number; mtime: number }[]>([]);
   const [colorMode, setColorMode] = useState<'light' | 'dark' | 'midnight'>('dark');
@@ -479,6 +577,8 @@ const App: React.FC = () => {
   // --- Greeting State ---
   const [greeting, setGreeting] = useState("");
   const [greetingOpacity, setGreetingOpacity] = useState(1);
+
+  const businessReceiptsDir = businessReceiptsDirs[activeBusinessLedgerId] || '';
 
   useEffect(() => {
     const getGreetingText = (name: string) => {
@@ -625,6 +725,7 @@ const App: React.FC = () => {
     recurringExpenses, categories, paymentMethods,
     businessTransactions, businessCategories, businessPaymentMethods,
     businessRecurringExpenses, businessSearchQuery,
+    businessLedgers, activeBusinessLedgerId,
     incomeStreams, incomeHistory, yearlyIncomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, yearlyMileageRates,
     yearlyOdometerStart, yearlyOdometerEnd,
@@ -635,6 +736,7 @@ const App: React.FC = () => {
     dashboardOrder,
     hiddenDashboardWidgets,
     receiptsDir,
+    businessReceiptsDirs,
     businessReceiptsDir,
     versionHistoryDir,
     colorMode,
@@ -649,6 +751,7 @@ const App: React.FC = () => {
     recurringExpenses, categories, paymentMethods,
     businessTransactions, businessCategories, businessPaymentMethods,
     businessRecurringExpenses, businessSearchQuery,
+    businessLedgers, activeBusinessLedgerId,
     incomeStreams, incomeHistory, yearlyIncomeHistory, incomeChartMetric,
     drivingLog, drivingPurposes, yearlyMileageRates,
     yearlyOdometerStart, yearlyOdometerEnd,
@@ -659,6 +762,7 @@ const App: React.FC = () => {
     dashboardOrder,
     hiddenDashboardWidgets,
     receiptsDir,
+    businessReceiptsDirs,
     businessReceiptsDir,
     versionHistoryDir,
     colorMode,
@@ -853,10 +957,46 @@ const App: React.FC = () => {
     if (appData.paymentMethods) setPaymentMethods(appData.paymentMethods);
 
     // Business
-    if (appData.businessTransactions) setBusinessTransactions(appData.businessTransactions);
-    if (appData.businessCategories) setBusinessCategories(appData.businessCategories);
-    if (appData.businessPaymentMethods) setBusinessPaymentMethods(appData.businessPaymentMethods);
-    if (appData.businessRecurringExpenses) setBusinessRecurringExpenses(appData.businessRecurringExpenses);
+    let resolvedBusinessLedgerId = DEFAULT_BUSINESS_LEDGER_ID;
+    if (appData.businessLedgers && Object.keys(appData.businessLedgers).length > 0) {
+      const normalizedLedgers = Object.entries(appData.businessLedgers).reduce((acc, [id, ledger]) => {
+        acc[id] = {
+          name: ledger.name || 'Business LLC',
+          transactions: ledger.transactions || [],
+          categories: ledger.categories && ledger.categories.length > 0 ? ledger.categories : [...INITIAL_BUSINESS_CATEGORIES],
+          paymentMethods: ledger.paymentMethods && ledger.paymentMethods.length > 0 ? ledger.paymentMethods : [...INITIAL_PAYMENT_METHODS],
+          recurringExpenses: ledger.recurringExpenses && ledger.recurringExpenses.length > 0
+            ? ledger.recurringExpenses
+            : cloneRecurringExpenses(INITIAL_RECURRING_EXPENSES),
+          searchQuery: ledger.searchQuery || ""
+        };
+        return acc;
+      }, {} as Record<string, BusinessLedgerState>);
+
+      setBusinessLedgers(normalizedLedgers);
+      const requestedLedgerId = appData.activeBusinessLedgerId || Object.keys(normalizedLedgers)[0];
+      if (requestedLedgerId) {
+        resolvedBusinessLedgerId = requestedLedgerId;
+        setActiveBusinessLedgerId(requestedLedgerId);
+      }
+    } else {
+      const migratedLedger = createBusinessLedgerState('Primary LLC');
+      migratedLedger.transactions = appData.businessTransactions || [];
+      migratedLedger.categories = appData.businessCategories && appData.businessCategories.length > 0
+        ? appData.businessCategories
+        : [...INITIAL_BUSINESS_CATEGORIES];
+      migratedLedger.paymentMethods = appData.businessPaymentMethods && appData.businessPaymentMethods.length > 0
+        ? appData.businessPaymentMethods
+        : [...INITIAL_PAYMENT_METHODS];
+      migratedLedger.recurringExpenses = appData.businessRecurringExpenses && appData.businessRecurringExpenses.length > 0
+        ? appData.businessRecurringExpenses
+        : cloneRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+      migratedLedger.searchQuery = appData.businessSearchQuery || "";
+
+      setBusinessLedgers({ [DEFAULT_BUSINESS_LEDGER_ID]: migratedLedger });
+      setActiveBusinessLedgerId(DEFAULT_BUSINESS_LEDGER_ID);
+      resolvedBusinessLedgerId = DEFAULT_BUSINESS_LEDGER_ID;
+    }
 
     // Income
     if (appData.incomeStreams) setIncomeStreams(appData.incomeStreams);
@@ -887,7 +1027,13 @@ const App: React.FC = () => {
     if (appData.dashboardOrder) setDashboardOrder(appData.dashboardOrder);
     if (appData.hiddenDashboardWidgets) setHiddenDashboardWidgets(appData.hiddenDashboardWidgets);
     if (appData.receiptsDir) setReceiptsDir(appData.receiptsDir);
-    if (appData.businessReceiptsDir) setBusinessReceiptsDir(appData.businessReceiptsDir);
+    if (appData.businessReceiptsDirs) {
+      setBusinessReceiptsDirs(appData.businessReceiptsDirs);
+    } else if (appData.businessReceiptsDir) {
+      setBusinessReceiptsDirs({ [resolvedBusinessLedgerId]: appData.businessReceiptsDir });
+    } else {
+      setBusinessReceiptsDirs({});
+    }
     if (appData.versionHistoryDir) setVersionHistoryDir(appData.versionHistoryDir);
     if (appData.colorMode) setColorMode(appData.colorMode);
     if (appData.userName) setUserName(appData.userName);
@@ -1229,15 +1375,24 @@ const App: React.FC = () => {
   const totalBusinessMonthlySpend = currentMonthBusinessData.reduce((acc, curr) => acc + (parseFloat(curr.amount.toString()) || 0), 0);
 
   const totalBusinessSpendYTD = useMemo(() => {
-    return businessTransactions.filter(t => {
+    return allBusinessTransactions.filter(t => {
       const d = new Date(t.date + 'T00:00:00');
       return d.getFullYear() === currentYear;
     }).reduce((acc, curr) => acc + (parseFloat(curr.amount.toString()) || 0), 0);
-  }, [businessTransactions, currentYear]);
+  }, [allBusinessTransactions, currentYear]);
 
   const averageBusinessMonthlySpend = useMemo(() => {
-    return businessCategoryStats.reduce((acc, curr) => acc + curr.avg12M, 0);
-  }, [businessCategoryStats]);
+    const totalLast12Months = allBusinessTransactions
+      .filter(t => {
+        const d = new Date(t.date + 'T00:00:00');
+        const now = new Date(currentYear, currentMonth, 1);
+        const diff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+        return diff >= 0 && diff < 12;
+      })
+      .reduce((acc, curr) => acc + (parseFloat(curr.amount.toString()) || 0), 0);
+
+    return totalLast12Months / 12;
+  }, [allBusinessTransactions, currentYear, currentMonth]);
 
   // NET WORTH CALCULATIONS
   const netWorthData = useMemo(() => {
@@ -1549,21 +1704,25 @@ const App: React.FC = () => {
       }
 
       // 4. Business Center CSV
-      const filteredBusiness = businessTransactions.filter(t => getDateFilter(t.date)).sort((a, b) => a.date.localeCompare(b.date));
+      const filteredBusiness = allBusinessTransactionsWithLedger
+        .filter(item => getDateFilter(item.transaction.date))
+        .sort((a, b) => a.transaction.date.localeCompare(b.transaction.date));
       if (filteredBusiness.length > 0) {
         const rows = [
-          "Date,Description,Amount,Category,Method",
-          ...filteredBusiness.map(t => `${t.date},"${(t.description || "").replace(/"/g, '""')}",${t.amount},${t.category},${t.method}`)
+          "Date,LLC,Description,Amount,Category,Method",
+          ...filteredBusiness.map(({ ledgerName, transaction }) =>
+            `${transaction.date},"${ledgerName.replace(/"/g, '""')}","${(transaction.description || "").replace(/"/g, '""')}",${transaction.amount},${transaction.category},${transaction.method}`
+          )
         ];
 
-        rows.push("", "CUMULATIVE YEARLY SPEND PER CATEGORY", "Year,Category,Total");
+        rows.push("", "CUMULATIVE YEARLY SPEND PER LLC + CATEGORY", "Year,LLC,Category,Total");
         const busCatSum: { [key: string]: number } = {};
         const yearsObj: { [y: string]: number } = {};
 
-        filteredBusiness.forEach(t => {
-          const y = t.date.substring(0, 4);
-          const key = `${y},${t.category}`;
-          const val = parseFloat(t.amount.toString()) || 0;
+        filteredBusiness.forEach(({ ledgerName, transaction }) => {
+          const y = transaction.date.substring(0, 4);
+          const key = `${y},"${ledgerName.replace(/"/g, '""')}",${transaction.category}`;
+          const val = parseFloat(transaction.amount.toString()) || 0;
           busCatSum[key] = (busCatSum[key] || 0) + val;
           yearsObj[y] = (yearsObj[y] || 0) + val;
         });
@@ -2250,6 +2409,90 @@ const App: React.FC = () => {
   };
 
   // --- Business Handlers ---
+  const handleAddBusinessLedger = () => {
+    const requestedName = prompt("Enter the LLC name for the new business ledger:");
+    if (requestedName === null) return;
+
+    const trimmedName = requestedName.trim();
+    if (!trimmedName) {
+      alert("LLC name cannot be empty.");
+      return;
+    }
+
+    const existingNames = Object.values(businessLedgers).map(ledger => ledger.name.toLowerCase());
+    let finalName = trimmedName;
+    let suffix = 2;
+    while (existingNames.includes(finalName.toLowerCase())) {
+      finalName = `${trimmedName} (${suffix})`;
+      suffix += 1;
+    }
+
+    const newLedgerId = `llc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setBusinessLedgers(prev => ({
+      ...prev,
+      [newLedgerId]: createBusinessLedgerState(finalName)
+    }));
+    setActiveBusinessLedgerId(newLedgerId);
+    setSelectedBusinessRecurringIds(new Set());
+    setToast({ message: `${finalName} added`, show: true });
+  };
+
+  const handleSwitchBusinessLedger = (ledgerId: string) => {
+    if (!businessLedgers[ledgerId]) return;
+    setActiveBusinessLedgerId(ledgerId);
+    setSelectedBusinessRecurringIds(new Set());
+    setEditingBusinessLedgerId(null);
+    setEditingBusinessLedgerName("");
+  };
+
+  const startRenameBusinessLedger = (ledgerId: string) => {
+    const ledger = businessLedgers[ledgerId];
+    if (!ledger) return;
+    setActiveBusinessLedgerId(ledgerId);
+    setEditingBusinessLedgerId(ledgerId);
+    setEditingBusinessLedgerName(ledger.name);
+  };
+
+  const cancelRenameBusinessLedger = () => {
+    setEditingBusinessLedgerId(null);
+    setEditingBusinessLedgerName("");
+  };
+
+  const commitRenameBusinessLedger = () => {
+    if (!editingBusinessLedgerId) return;
+    const originalLedger = businessLedgers[editingBusinessLedgerId];
+    if (!originalLedger) {
+      cancelRenameBusinessLedger();
+      return;
+    }
+
+    const trimmedName = editingBusinessLedgerName.trim();
+    if (!trimmedName) {
+      cancelRenameBusinessLedger();
+      return;
+    }
+
+    let finalName = trimmedName;
+    let suffix = 2;
+    while (
+      Object.entries(businessLedgers).some(([ledgerId, ledger]) =>
+        ledgerId !== editingBusinessLedgerId && ledger.name.toLowerCase() === finalName.toLowerCase()
+      )
+    ) {
+      finalName = `${trimmedName} (${suffix})`;
+      suffix += 1;
+    }
+
+    setBusinessLedgers(prev => ({
+      ...prev,
+      [editingBusinessLedgerId]: {
+        ...prev[editingBusinessLedgerId],
+        name: finalName
+      }
+    }));
+    cancelRenameBusinessLedger();
+  };
+
   const addBlankBusinessRow = () => {
     if (businessSearchQuery) {
       if (!confirm("Adding a row will clear your current search. Continue?")) return;
@@ -2334,9 +2577,12 @@ const App: React.FC = () => {
       const nextPageIndex = existingPaths.length + 1;
       const filename = `${formattedDate} - ${description} - ${amount} - Page ${nextPageIndex}.${ext}`;
 
+      const sanitizeFolderName = (name: string) => name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
+      const defaultBusinessFolder = `${currentYear} - ${sanitizeFolderName(activeBusinessLedger?.name || 'Business Expense')}`;
+
       // Folder and Save
       let folderPath = isBusiness
-        ? (businessReceiptsDir || `${currentYear} - Business Expense`)
+        ? (businessReceiptsDir || defaultBusinessFolder)
         : (receiptsDir || "Spending Receipts");
 
       await window.electronAPI.ensureDir(folderPath);
@@ -2384,7 +2630,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSelectBusinessReceiptDir = async () => {
+  const handleSelectBusinessReceiptDir = async (ledgerId: string = activeBusinessLedgerId) => {
     console.log("handleSelectBusinessReceiptDir triggered");
     if (!window.electronAPI) {
       alert("This feature is only available in the Desktop App.");
@@ -2398,7 +2644,10 @@ const App: React.FC = () => {
       const result = await window.electronAPI.showDirectoryDialog();
       console.log("Directory picker result:", result);
       if (!result.canceled && result.filePaths.length > 0) {
-        setBusinessReceiptsDir(result.filePaths[0]);
+        setBusinessReceiptsDirs(prev => ({
+          ...prev,
+          [ledgerId]: result.filePaths[0]
+        }));
       }
     } catch (err) {
       console.error("Failed to open directory picker:", err);
@@ -4918,9 +5167,12 @@ const App: React.FC = () => {
                           }, 0);
 
                         // Calculate business expenses
-                        const currentMonthExpenses = currentMonthBusinessData.reduce((sum, t) => sum + (parseFloat(t.amount.toString()) || 0), 0);
+                        const currentMonthExpenses = allBusinessTransactions.filter(t => {
+                          const d = new Date(t.date + 'T00:00:00');
+                          return d.getFullYear() === currentYear && d.getMonth() === currentMonth && (parseFloat(t.amount.toString()) || 0) > 0;
+                        }).reduce((sum, t) => sum + (parseFloat(t.amount.toString()) || 0), 0);
 
-                        const ytdBusinessExpenses = businessTransactions.filter(t => {
+                        const ytdBusinessExpenses = allBusinessTransactions.filter(t => {
                           const d = new Date(t.date + 'T00:00:00');
                           return d.getFullYear() === currentYear && (parseFloat(t.amount.toString()) || 0) > 0;
                         }).reduce((sum, t) => sum + (parseFloat(t.amount.toString()) || 0), 0);
@@ -5441,6 +5693,58 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="space-y-4">
+                    <div className="flex items-center gap-3 px-1">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">LLC Ledgers</span>
+                      <div className="flex-1 overflow-x-auto">
+                        <div className="flex items-center gap-2 min-w-max pb-1">
+                          {Object.entries(businessLedgers).map(([ledgerId, ledger]) => {
+                            const isActive = ledgerId === activeBusinessLedgerId;
+                            const isEditing = editingBusinessLedgerId === ledgerId;
+                            if (isEditing) {
+                              return (
+                                <input
+                                  key={ledgerId}
+                                  autoFocus
+                                  type="text"
+                                  value={editingBusinessLedgerName}
+                                  onChange={(e) => setEditingBusinessLedgerName(e.target.value)}
+                                  onBlur={commitRenameBusinessLedger}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') commitRenameBusinessLedger();
+                                    if (e.key === 'Escape') cancelRenameBusinessLedger();
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold bg-gray-900 text-white outline-none min-w-[160px] ${theme.border}`}
+                                />
+                              );
+                            }
+                            return (
+                              <button
+                                key={ledgerId}
+                                onClick={() => handleSwitchBusinessLedger(ledgerId)}
+                                onDoubleClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  startRenameBusinessLedger(ledgerId);
+                                }}
+                                title="Double-click to rename LLC"
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors ${isActive
+                                  ? `${theme.primary} ${theme.border} text-white`
+                                  : 'bg-gray-900 border-gray-800 text-gray-300 hover:bg-gray-800'
+                                  }`}
+                              >
+                                {ledger.name}
+                              </button>
+                            );
+                          })}
+                          <button
+                            onClick={handleAddBusinessLedger}
+                            className="px-3 py-1.5 rounded-lg border border-dashed border-gray-700 text-xs font-bold text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
+                          >
+                            + ADD LLC
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex justify-between items-center px-1">
                       <div className="flex items-center space-x-4">
                         <h2 className="text-xl font-bold text-white">Business Ledger</h2>
@@ -6663,10 +6967,9 @@ const App: React.FC = () => {
                           <button
                             onClick={() => {
                               if (confirm('Are you sure you want to clear ALL Business Center data?')) {
-                                setBusinessTransactions([]);
-                                setBusinessCategories(INITIAL_BUSINESS_CATEGORIES);
-                                setBusinessPaymentMethods(INITIAL_PAYMENT_METHODS);
-                                setBusinessRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+                                setBusinessLedgers({ [DEFAULT_BUSINESS_LEDGER_ID]: createBusinessLedgerState() });
+                                setActiveBusinessLedgerId(DEFAULT_BUSINESS_LEDGER_ID);
+                                setBusinessReceiptsDirs({});
                                 setToast({ message: 'Business Center data cleared', show: true });
                               }
                             }}
@@ -6727,10 +7030,9 @@ const App: React.FC = () => {
                                   setRecurringExpenses(INITIAL_RECURRING_EXPENSES);
                                   setCategories(INITIAL_CATEGORIES);
                                   setPaymentMethods(INITIAL_PAYMENT_METHODS);
-                                  setBusinessTransactions([]);
-                                  setBusinessCategories(INITIAL_BUSINESS_CATEGORIES);
-                                  setBusinessPaymentMethods(INITIAL_PAYMENT_METHODS);
-                                  setBusinessRecurringExpenses(INITIAL_RECURRING_EXPENSES);
+                                  setBusinessLedgers({ [DEFAULT_BUSINESS_LEDGER_ID]: createBusinessLedgerState() });
+                                  setActiveBusinessLedgerId(DEFAULT_BUSINESS_LEDGER_ID);
+                                  setBusinessReceiptsDirs({});
                                   setIncomeStreams(INITIAL_INCOME_STREAMS);
                                   setIncomeHistory([]);
                                   setDrivingLog([]);
@@ -7257,20 +7559,36 @@ const App: React.FC = () => {
                       <ChevronRight className="text-gray-600 group-hover:text-white" />
                     </div>
 
-                    <div
-                      className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 flex justify-between items-center cursor-pointer hover:bg-gray-900/50 hover:border-gray-700 transition-all group"
-                      onClick={handleSelectBusinessReceiptDir}
-                    >
-                      <div className="flex-1">
-                        <h4 className={`font-bold text-white flex items-center gap-2 group-hover:${theme.text} transition-colors`}><Folder size={18} /> Receipt Save Directory</h4>
-                        <p className="text-sm text-gray-500 mt-1 truncate max-w-md">{businessReceiptsDir || `${currentYear} - Business Expense (Default)`}</p>
+                    <div className="bg-gray-900/30 border border-gray-800 rounded-2xl p-6 space-y-4">
+                      <div>
+                        <h4 className={`font-bold text-white flex items-center gap-2`}><Folder size={18} /> Receipt Save Directories (All LLCs)</h4>
+                        <p className="text-sm text-gray-500 mt-1">Each LLC can use a different receipt folder.</p>
                       </div>
-                      <button
-                        className="ml-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-bold rounded-lg border border-gray-700 transition-colors"
-                        onClick={(e) => { e.stopPropagation(); handleSelectBusinessReceiptDir(); }}
-                      >
-                        SELECT FOLDER
-                      </button>
+                      <div className="space-y-3">
+                        {Object.entries(businessLedgers).map(([ledgerId, ledger]) => {
+                          const savedPath = businessReceiptsDirs[ledgerId];
+                          const defaultPath = `${currentYear} - ${ledger.name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')} (Default)`;
+                          return (
+                            <div
+                              key={ledgerId}
+                              className={`p-4 rounded-xl border transition-colors ${ledgerId === activeBusinessLedgerId ? `${theme.border} ${theme.primary}/10` : 'border-gray-800 bg-gray-900/30'}`}
+                            >
+                              <div className="flex justify-between items-start gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-bold text-white truncate">{ledger.name}</p>
+                                  <p className="text-xs text-gray-500 mt-1 truncate">{savedPath || defaultPath}</p>
+                                </div>
+                                <button
+                                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-bold rounded-lg border border-gray-700 transition-colors whitespace-nowrap"
+                                  onClick={() => handleSelectBusinessReceiptDir(ledgerId)}
+                                >
+                                  SELECT FOLDER
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}

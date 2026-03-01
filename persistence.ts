@@ -80,11 +80,20 @@ export interface AppData {
     paymentMethods: string[];
 
     // Business
-    businessTransactions: Transaction[];
-    businessCategories: string[];
-    businessPaymentMethods: string[];
-    businessRecurringExpenses: RecurringExpense[];
+    businessTransactions?: Transaction[];
+    businessCategories?: string[];
+    businessPaymentMethods?: string[];
+    businessRecurringExpenses?: RecurringExpense[];
     businessSearchQuery?: string; // Optional as it might be transient
+    businessLedgers?: Record<string, {
+        name: string;
+        transactions: Transaction[];
+        categories: string[];
+        paymentMethods: string[];
+        recurringExpenses: RecurringExpense[];
+        searchQuery?: string;
+    }>;
+    activeBusinessLedgerId?: string;
 
     // Income
     incomeStreams: IncomeStream[];
@@ -124,6 +133,7 @@ export interface AppData {
     // Receipt Directories
     receiptsDir?: string;
     businessReceiptsDir?: string;
+    businessReceiptsDirs?: Record<string, string>;
     versionHistoryDir?: string;
 }
 
